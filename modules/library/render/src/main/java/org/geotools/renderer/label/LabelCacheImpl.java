@@ -141,6 +141,10 @@ import org.opengis.filter.expression.Literal;
  */
 public class LabelCacheImpl implements LabelCache {
 
+    public void setSLDStyleFactory(SLDStyleFactory value) {
+        this.styleFactory = value;
+    }
+
     static final boolean DEBUG_CACHE_BOUNDS =
             Boolean.getBoolean("org.geotools.labelcache.showbounds");
 
@@ -349,6 +353,8 @@ public class LabelCacheImpl implements LabelCache {
             String label = symbolizer.getLabel().evaluate(feature, String.class);
 
             if (label == null) return;
+
+            label = label.trim();
 
             if (label.length() == 0) {
                 return; // dont label something with nothing!

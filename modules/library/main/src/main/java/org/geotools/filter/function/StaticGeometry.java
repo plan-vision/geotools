@@ -48,6 +48,7 @@ public class StaticGeometry {
     // JTS SF SQL functions
 
     public static Geometry geomFromWKT(String wkt) {
+        wkt = wkt.replace('@', ' ');
         WKTReader wktreader = new WKTReader();
 
         try {

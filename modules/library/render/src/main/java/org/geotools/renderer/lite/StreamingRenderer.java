@@ -190,6 +190,11 @@ import org.opengis.style.PolygonSymbolizer;
  */
 public class StreamingRenderer implements GTRenderer {
 
+    public void setSLDStyleFactory(SLDStyleFactory value) {
+        this.styleFactory = value;
+        ((LabelCacheImpl) labelCache).setSLDStyleFactory(value);
+    }
+
     private static final int REPROJECTION_RASTER_GUTTER = 10;
 
     private static final int defaultMaxFiltersToSendToDatastore = 5; // default
@@ -1816,15 +1821,16 @@ public class StreamingRenderer implements GTRenderer {
     private List<PropertyName> findStyleAttributes(
             List<LiteFeatureTypeStyle> styles, FeatureType schema) {
         final StyleAttributeExtractor sae = new StyleAttributeExtractor();
-
-        for (LiteFeatureTypeStyle lfts : styles) {
-            for (Rule rule : lfts.elseRules) {
-                sae.visit(rule);
+        if (dynamic != null) dynamic.findStyleAttributes(sae);
+        else
+            for (LiteFeatureTypeStyle lfts : styles) {
+                for (Rule rule : lfts.elseRules) {
+                    sae.visit(rule);
+                }
+                for (Rule rule : lfts.ruleList) {
+                    sae.visit(rule);
+                }
             }
-            for (Rule rule : lfts.ruleList) {
-                sae.visit(rule);
-            }
-        }
 
         if (sae.isUsingDynamincProperties()) {
             return null;
@@ -2483,6 +2489,7 @@ public class StreamingRenderer implements GTRenderer {
             for (LiteFeatureTypeStyle fts : lfts) {
                 rescaleFeatureTypeStyle(fts, dpiVisitor);
             }
+            if (dynamic != null) dynamic.scaleRules(dpiVisitor);
         }
 
         // apply UOM rescaling
@@ -2492,6 +2499,7 @@ public class StreamingRenderer implements GTRenderer {
         for (LiteFeatureTypeStyle fts : lfts) {
             rescaleFeatureTypeStyle(fts, rescaleVisitor);
         }
+        if (dynamic != null) dynamic.scaleRules(rescaleVisitor);
     }
 
     /**
@@ -2837,6 +2845,18 @@ public class StreamingRenderer implements GTRenderer {
                 || !Collections.disjoint(filterAndSymbolizerProperties, txGeometries);
     }
 
+    public static interface DynamicRuleGetter {
+        public Rule[] getRules(Feature f);
+
+        public void scaleRules(org.geotools.styling.visitor.DuplicatingStyleVisitor visitor);
+
+        public void findStyleAttributes(
+                org.geotools.renderer.style.StyleAttributeExtractor visitor);
+    }
+
+    public DynamicRuleGetter dynamic = null;
+    private static final Rule[] emptyRuleArr = new Rule[0];
+
     /** */
     void processFeature(
             RenderableFeature rf, LiteFeatureTypeStyle fts, ProjectionHandler projectionHandler) {
@@ -2850,8 +2870,8 @@ public class StreamingRenderer implements GTRenderer {
 
             // can the rules
             boolean doElse = true;
-            Rule[] elseRuleList = fts.elseRules;
-            Rule[] ruleList = fts.ruleList;
+            Rule[] elseRuleList = dynamic != null ? emptyRuleArr : fts.elseRules;
+            Rule[] ruleList = dynamic != null ? dynamic.getRules(rf.feature) : fts.ruleList;
             Rule r;
             Filter filter;
             Graphics2D graphics = fts.graphics;

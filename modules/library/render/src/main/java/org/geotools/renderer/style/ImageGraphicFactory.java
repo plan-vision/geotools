@@ -16,8 +16,6 @@
  */
 package org.geotools.renderer.style;
 
-import java.awt.geom.AffineTransform;
-import java.awt.image.AffineTransformOp;
 import java.awt.image.BufferedImage;
 import java.net.URL;
 import java.util.Arrays;
@@ -56,6 +54,11 @@ public class ImageGraphicFactory implements ExternalGraphicFactory, GraphicCache
 
     @Override
     public Icon getIcon(Feature feature, Expression url, String format, int size) {
+
+        String _fl = format.toLowerCase();
+        if (_fl.trim().isEmpty()) // special case force skip
+        return null;
+
         // check we do support the format
         if (!supportedGraphicFormats.contains(format.toLowerCase())) return null;
 
@@ -70,23 +73,18 @@ public class ImageGraphicFactory implements ExternalGraphicFactory, GraphicCache
         if (image == null) {
             try {
                 image = ImageIOExt.readBufferedImage(location);
+                if (image == null) return null;
             } catch (java.io.IOException ioe) {
                 LOGGER.warning("Unable to read image at " + location + " : " + ioe.getMessage());
                 return null;
             }
             imageCache.put(location, image);
         }
-
         // if scaling is needed, perform it
         if (size > 0 && image.getHeight() != size) {
-            double dsize = size;
-
-            double scaleY = dsize / image.getHeight(); // >1 if you're magnifying
-            double scaleX = scaleY; // keep aspect ratio!
-
-            AffineTransform scaleTx = AffineTransform.getScaleInstance(scaleX, scaleY);
-            AffineTransformOp ato = new AffineTransformOp(scaleTx, AffineTransformOp.TYPE_BILINEAR);
-            image = ato.filter(image, null);
+            double dsize = (double) size;
+            double scale = dsize / image.getHeight(); // >1 if you're magnifying
+            return new RescaledIcon(new javax.swing.ImageIcon(image), scale);
         }
 
         return new ImageIcon(image);

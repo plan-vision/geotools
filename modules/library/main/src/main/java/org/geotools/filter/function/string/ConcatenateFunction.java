@@ -62,7 +62,7 @@ public class ConcatenateFunction extends FunctionImpl {
         StringBuffer text = new StringBuffer();
         for (Expression expression : getParameters()) {
             try {
-                String str = expression.evaluate(feature, String.class);
+                String str = expression.evaluate(feature, String.class).toString();
                 if (str != null) {
                     text.append(str);
                 }

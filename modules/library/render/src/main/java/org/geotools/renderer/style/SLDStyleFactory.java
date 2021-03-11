@@ -560,16 +560,16 @@ public class SLDStyleFactory {
                         // no icon -> no image either, there is no raster
                         // fallback
                         continue;
-                    } else if (icon instanceof ImageIcon) {
-                        // when the icon is an image better use the graphic style, we have
-                        // better rendering code for it
-                        GraphicStyle2D g2d = getGraphicStyle(eg, feature, size, 1);
-                        if (g2d != null) {
-                            g2d.setRotation(rotation);
-                            retval = g2d;
-                            break;
-                        }
-                    } else {
+                    } /*else if (icon instanceof ImageIcon) {
+                          // when the icon is an image better use the graphic style, we have
+                          // better rendering code for it
+                          GraphicStyle2D g2d = getGraphicStyle(eg, feature, size, 1);
+                          if (g2d != null) {
+                              g2d.setRotation(rotation);
+                              retval = g2d;
+                              break;
+                          }
+                      } */ else {
                         if (icon.getIconHeight() != size && size != 0) {
                             double scale = (size) / icon.getIconHeight();
                             icon = new RescaledIcon(icon, scale);

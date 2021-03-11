@@ -366,12 +366,11 @@ public class Drawer {
                 g.setTransform(AffineTransform.getRotateInstance(rotation));
 
                 BufferedImage image = style.getImage();
-
-                g.drawImage(
-                        image,
-                        (int) (point[0] - ((double) image.getWidth()) / (double) 2),
-                        (int) (point[1] - ((double) image.getHeight()) / (double) 2),
-                        null);
+                double tx = point[0] - ((double) image.getWidth()) / (double) 2;
+                double ty = point[1] - ((double) image.getHeight()) / (double) 2;
+                g.translate(tx, ty);
+                g.drawImage(image, 0, 0, null);
+                g.translate(-tx, -ty);
             }
         }
     }
