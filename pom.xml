@@ -78,6 +78,8 @@
   <!--     manner relevant to the purpose of the "site" goal.      -->
   <!-- =========================================================== -->
   <properties>
+
+    <maven.test.skip>true</maven.test.skip>
     <allow.test.skip>true</allow.test.skip>
     <allow.test.failure.ignore>false</allow.test.failure.ignore>
     <extensive.tests>false</extensive.tests>
@@ -240,7 +242,7 @@
         </plugins>
       </build>
     </profile>
-    
+
     <profile>
       <id>pmd</id>
       <activation>
@@ -305,7 +307,7 @@
         </plugins>
       </build>
     </profile>
-    
+
     <!-- for those using JDK 11 -->
     <profile>
       <id>errorprone</id>
@@ -342,7 +344,7 @@
         </plugins>
       </build>
     </profile>
-    
+
     <!-- using github.com/google/error-prone-javac is required when running on JDK 8 -->
     <profile>
       <id>errorprone8</id>
@@ -418,7 +420,7 @@
         </plugins>
       </build>
     </profile>
-    
+
     <profile>
       <id>checkstyle</id>
       <activation>
@@ -454,7 +456,7 @@
             </executions>
           </plugin>
         </plugins>
-      </build>  
+      </build>
     </profile>
     <profile>
       <id>enforcer</id>
@@ -894,7 +896,7 @@
           <artifactId>systems-common</artifactId>
           <version>2.0.1</version>
       </dependency>
-    
+
       <!-- Java Advanced Imaging (JAI) -->
       <dependency>
         <groupId>javax.media</groupId>
@@ -911,7 +913,7 @@
         <artifactId>jai_imageio</artifactId>
         <version>1.1</version>
       </dependency>
-      
+
       <!-- ImageIO-Ext -->
       <dependency>
         <groupId>it.geosolutions.imageio-ext</groupId>
@@ -947,12 +949,12 @@
         <groupId>it.geosolutions.imageio-ext</groupId>
         <artifactId>imageio-ext-gdalkakadujp2</artifactId>
         <version>${imageio.ext.version}</version>
-      </dependency>     
+      </dependency>
       <dependency>
         <groupId>it.geosolutions.imageio-ext</groupId>
         <artifactId>imageio-ext-gdalidrisi</artifactId>
         <version>${imageio.ext.version}</version>
-      </dependency>           
+      </dependency>
       <dependency>
         <groupId>it.geosolutions.imageio-ext</groupId>
         <artifactId>imageio-ext-gdalmrsidjp2</artifactId>
@@ -1017,7 +1019,7 @@
         <groupId>it.geosolutions.imageio-ext</groupId>
         <artifactId>imageio-ext-streams</artifactId>
         <version>${imageio.ext.version}</version>
-      </dependency>      
+      </dependency>
       <dependency>
         <groupId>it.geosolutions.imageio-ext</groupId>
         <artifactId>imageio-ext-netcdf</artifactId>
@@ -1027,17 +1029,17 @@
         <groupId>it.geosolutions.imageio-ext</groupId>
         <artifactId>imageio-ext-geocore</artifactId>
         <version>${imageio.ext.version}</version>
-      </dependency> 
+      </dependency>
       <dependency>
         <groupId>it.geosolutions.imageio-ext</groupId>
         <artifactId>imageio-ext-hdf4</artifactId>
         <version>${imageio.ext.version}</version>
-      </dependency>   
+      </dependency>
       <dependency>
         <groupId>it.geosolutions.imageio-ext</groupId>
         <artifactId>imageio-ext-grib1</artifactId>
         <version>${imageio.ext.version}</version>
-      </dependency>   
+      </dependency>
       <dependency>
         <groupId>it.geosolutions.imageio-ext</groupId>
         <artifactId>imageio-ext-png</artifactId>
@@ -1064,7 +1066,7 @@
         <groupId>org.jaitools</groupId>
         <artifactId>jt-vectorbinarize</artifactId>
         <version>${jt.version}</version>
-      </dependency> 
+      </dependency>
       <dependency>
         <groupId>org.jaitools</groupId>
         <artifactId>jt-zonalstats</artifactId>
@@ -1199,7 +1201,7 @@
         <artifactId>eastwood</artifactId>
         <version>1.1.1-20090908</version>
       </dependency>
-    
+
       <!-- XML -->
       <dependency>
         <groupId>org.jdom</groupId>
@@ -1328,7 +1330,7 @@
         <groupId>com.oracle</groupId>
         <version>10.2.0</version>
       </dependency>
-      
+
       <dependency>
         <groupId>net.sourceforge.jtds</groupId>
         <artifactId>jtds</artifactId>
@@ -1354,17 +1356,17 @@
       <!-- Grid data formats -->
       <dependency>
         <groupId>edu.ucar</groupId>
-        <artifactId>cdm</artifactId> 
+        <artifactId>cdm</artifactId>
         <version>${netcdf.version}</version>
       </dependency>
       <dependency>
         <groupId>edu.ucar</groupId>
-        <artifactId>netcdf4</artifactId> 
+        <artifactId>netcdf4</artifactId>
         <version>${netcdf.version}</version>
       </dependency>
       <dependency>
         <groupId>edu.ucar</groupId>
-        <artifactId>bufr</artifactId> 
+        <artifactId>bufr</artifactId>
         <version>${netcdf.version}</version>
       </dependency>
       <dependency>
@@ -1519,12 +1521,12 @@
         <groupId>it.geosolutions.jaiext.buffer</groupId>
         <artifactId>jt-buffer</artifactId>
         <version>${jaiext.version}</version>
-      </dependency>	 
+      </dependency>
       <dependency>
         <groupId>it.geosolutions.jaiext.crop</groupId>
         <artifactId>jt-crop</artifactId>
         <version>${jaiext.version}</version>
-      </dependency>	
+      </dependency>
      <dependency>
         <groupId>it.geosolutions.jaiext.iterators</groupId>
         <artifactId>jt-iterators</artifactId>
@@ -1534,22 +1536,22 @@
         <groupId>it.geosolutions.jaiext.lookup</groupId>
         <artifactId>jt-lookup</artifactId>
         <version>${jaiext.version}</version>
-      </dependency>	
+      </dependency>
       <dependency>
         <groupId>it.geosolutions.jaiext.mosaic</groupId>
         <artifactId>jt-mosaic</artifactId>
         <version>${jaiext.version}</version>
-      </dependency>	
+      </dependency>
       <dependency>
         <groupId>it.geosolutions.jaiext.nullop</groupId>
         <artifactId>jt-nullop</artifactId>
         <version>${jaiext.version}</version>
-      </dependency>	
+      </dependency>
       <dependency>
         <groupId>it.geosolutions.jaiext.rescale</groupId>
         <artifactId>jt-rescale</artifactId>
         <version>${jaiext.version}</version>
-      </dependency>	
+      </dependency>
       <dependency>
         <groupId>it.geosolutions.jaiext.scale</groupId>
         <artifactId>jt-scale</artifactId>
@@ -1564,7 +1566,7 @@
         <groupId>it.geosolutions.jaiext.stats</groupId>
         <artifactId>jt-stats</artifactId>
         <version>${jaiext.version}</version>
-      </dependency>	
+      </dependency>
       <dependency>
         <groupId>it.geosolutions.jaiext.translate</groupId>
         <artifactId>jt-translate</artifactId>
@@ -1579,52 +1581,52 @@
         <groupId>it.geosolutions.jaiext.warp</groupId>
         <artifactId>jt-warp</artifactId>
         <version>${jaiext.version}</version>
-      </dependency>	
+      </dependency>
       <dependency>
         <groupId>it.geosolutions.jaiext.zonal</groupId>
         <artifactId>jt-zonal</artifactId>
         <version>${jaiext.version}</version>
-      </dependency>	
+      </dependency>
       <dependency>
         <groupId>it.geosolutions.jaiext.binarize</groupId>
         <artifactId>jt-binarize</artifactId>
         <version>${jaiext.version}</version>
-      </dependency>	
+      </dependency>
       <dependency>
         <groupId>it.geosolutions.jaiext.format</groupId>
         <artifactId>jt-format</artifactId>
         <version>${jaiext.version}</version>
-      </dependency>	
+      </dependency>
       <dependency>
         <groupId>it.geosolutions.jaiext.colorconvert</groupId>
         <artifactId>jt-colorconvert</artifactId>
         <version>${jaiext.version}</version>
-      </dependency>	
+      </dependency>
       <dependency>
         <groupId>it.geosolutions.jaiext.errordiffusion</groupId>
         <artifactId>jt-errordiffusion</artifactId>
         <version>${jaiext.version}</version>
-      </dependency>	
+      </dependency>
       <dependency>
         <groupId>it.geosolutions.jaiext.orderdither</groupId>
         <artifactId>jt-orderdither</artifactId>
         <version>${jaiext.version}</version>
-      </dependency>	
+      </dependency>
       <dependency>
         <groupId>it.geosolutions.jaiext.colorindexer</groupId>
         <artifactId>jt-colorindexer</artifactId>
         <version>${jaiext.version}</version>
-      </dependency>	
+      </dependency>
       <dependency>
         <groupId>it.geosolutions.jaiext.imagefunction</groupId>
         <artifactId>jt-imagefunction</artifactId>
         <version>${jaiext.version}</version>
-      </dependency>	
+      </dependency>
       <dependency>
         <groupId>it.geosolutions.jaiext.piecewise</groupId>
         <artifactId>jt-piecewise</artifactId>
         <version>${jaiext.version}</version>
-      </dependency>	
+      </dependency>
       <dependency>
         <groupId>it.geosolutions.jaiext.classifier</groupId>
         <artifactId>jt-classifier</artifactId>
@@ -1645,7 +1647,7 @@
         <artifactId>jt-shadedrelief</artifactId>
         <version>${jaiext.version}</version>
       </dependency>
-      
+
       <!-- Third-party -->
       <dependency>
         <groupId>com.googlecode.json-simple</groupId>
@@ -1800,10 +1802,10 @@
         <version>1.0-beta-2</version>
       </extension>
     </extensions>
-    
-   
+
+
     <plugins>
-    
+
      <plugin>
         <groupId>org.codehaus.mojo</groupId>
         <artifactId>build-helper-maven-plugin</artifactId>
@@ -1837,7 +1839,7 @@
           </execution>
         </executions>
       </plugin>
-    
+
       <plugin>
         <groupId>org.commonjava.maven.plugins</groupId>
         <artifactId>directory-maven-plugin</artifactId>
@@ -1854,8 +1856,8 @@
             </configuration>
           </execution>
         </executions>
-      </plugin>    
-    
+      </plugin>
+
       <plugin>
         <groupId>org.apache.maven.plugins</groupId>
         <artifactId>maven-assembly-plugin</artifactId>
@@ -2045,7 +2047,7 @@
           <useNativeGit>${git.commit.useNative}</useNativeGit>
         </configuration>
       </plugin>
-      
+
       <!-- ======================================================= -->
       <!--     Javadoc generation.                                 -->
       <!--                                                         -->
@@ -2334,7 +2336,7 @@
           </links>
         </configuration>
       </plugin>
-    
+
       <!-- ======================================================= -->
       <!--     Reports configuration for the web site.             -->
       <!-- ======================================================= -->
@@ -2420,7 +2422,7 @@
   <repositories>
 
     <!-- Maven Central is assumed -->
-  
+
     <repository>
       <id>osgeo</id>
       <name>OSGeo Nexus Release Repository</name>
@@ -2455,7 +2457,7 @@
       <url>https://repo.osgeo.org/repository/release/</url>
       <snapshots><enabled>false</enabled></snapshots>
       <releases><enabled>true</enabled></releases>
-    </pluginRepository> 
+    </pluginRepository>
 
     <pluginRepository>
       <id>osgeo-snapshot</id>
@@ -2463,8 +2465,8 @@
       <url>https://repo.osgeo.org/repository/snapshot/</url>
       <snapshots><enabled>true</enabled></snapshots>
       <releases><enabled>false</enabled></releases>
-    </pluginRepository> 
-    
+    </pluginRepository>
+
   </pluginRepositories>
 
 
