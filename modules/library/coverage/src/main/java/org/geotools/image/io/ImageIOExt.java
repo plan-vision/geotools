@@ -360,6 +360,17 @@ public class ImageIOExt {
         if (input instanceof ImageInputStream) {
             return (ImageInputStream) input;
         }
+        /* VISIONR FIX LOCAL RESOURCE RESOLVE JAI ? */
+        if (input instanceof java.net.URL) {
+            try {
+                File f = java.nio.file.Paths.get(((java.net.URL) input).toURI()).toFile();
+                if (f.exists() && f.canRead()) {
+                    input = f;
+                }
+            } catch (Exception e) {
+            }
+        }
+
         ImageInputStream stream = ImageIO.createImageInputStream(input);
         if (stream == null) {
             throw new IOException("Can't create an ImageInputStream!");
