@@ -63,6 +63,7 @@ import org.geotools.coverage.grid.io.RenamingGranuleSource;
 import org.geotools.coverage.grid.io.StructuredGridCoverage2DReader;
 import org.geotools.coverage.util.CoverageUtilities;
 import org.geotools.coverage.util.FeatureUtilities;
+import org.geotools.data.DataUtilities;
 import org.geotools.data.Query;
 import org.geotools.data.Transaction;
 import org.geotools.data.simple.SimpleFeatureCollection;
@@ -96,12 +97,12 @@ import org.geotools.referencing.operation.transform.IdentityTransform;
 import org.geotools.referencing.operation.transform.ProjectiveTransform;
 import org.geotools.renderer.crs.ProjectionHandler;
 import org.geotools.renderer.crs.ProjectionHandlerFinder;
-import org.geotools.util.Range;
 import org.geotools.util.URLs;
 import org.geotools.util.Utilities;
 import org.geotools.util.factory.Hints;
 import org.opengis.coverage.grid.GridCoverage;
 import org.opengis.coverage.grid.GridEnvelope;
+import org.opengis.feature.simple.SimpleFeature;
 import org.opengis.feature.simple.SimpleFeatureType;
 import org.opengis.feature.type.AttributeDescriptor;
 import org.opengis.filter.Filter;
@@ -109,7 +110,6 @@ import org.opengis.filter.FilterFactory2;
 import org.opengis.filter.PropertyIsEqualTo;
 import org.opengis.filter.expression.PropertyName;
 import org.opengis.filter.sort.SortOrder;
-import org.opengis.filter.spatial.BBOX;
 import org.opengis.geometry.BoundingBox;
 import org.opengis.geometry.Envelope;
 import org.opengis.metadata.Identifier;
@@ -127,7 +127,7 @@ import org.opengis.referencing.operation.TransformException;
  * @author Simone Giannecchini, GeoSolutions SAS
  * @author Daniele Romagnoli, GeoSolutions SAS
  */
-@SuppressWarnings({"rawtypes", "unchecked"})
+@SuppressWarnings("unchecked")
 public class RasterManager implements Cloneable {
 
     final Hints excludeMosaicHints = new Hints(Utils.EXCLUDE_MOSAIC, true);
@@ -475,70 +475,8 @@ public class RasterManager implements Cloneable {
          *     {@link DomainManager}.
          */
         private Filter createFilter(List values) {
-
-            // === create the filter
-            // loop values and AND them
-            final List<Filter> filters = new ArrayList<>();
-            FilterFactory2 ff = FeatureUtilities.DEFAULT_FILTER_FACTORY;
-            for (Object value : values) {
-                // checks
-                if (value == null) {
-                    if (LOGGER.isLoggable(Level.INFO)) {
-                        LOGGER.info("Ignoring null date for the filter:" + this.identifier);
-                    }
-                    continue;
-                }
-                if (domainType == DomainType.SINGLE_VALUE) {
-                    // Domain made of single values
-                    if (value instanceof Range) {
-                        // RANGE
-                        final Range range = (Range) value;
-                        filters.add(
-                                ff.and(
-                                        ff.lessOrEqual(
-                                                ff.property(propertyName),
-                                                ff.literal(range.getMaxValue())),
-                                        ff.greaterOrEqual(
-                                                ff.property(propertyName),
-                                                ff.literal(range.getMinValue()))));
-                    } else {
-                        // SINGLE value
-                        filters.add(ff.equal(ff.property(propertyName), ff.literal(value), true));
-                    }
-                } else { // domainType == DomainType.RANGE
-                    // Domain made of ranges such as (beginTime,endTime) ,
-                    // (beginElevation,endElevation) , ...
-                    if (value instanceof Range) {
-                        // RANGE
-                        final Range range = (Range) value;
-                        final Comparable maxValue = range.getMaxValue();
-                        final Comparable minValue = range.getMinValue();
-                        if (maxValue.compareTo(minValue) != 0) {
-                            // logic comes from Range.intersectsNC(Range)
-                            // in summary, requestedMax > min && requestedMin < max
-                            Filter maxCondition =
-                                    ff.greaterOrEqual(
-                                            ff.literal(maxValue), ff.property(propertyName));
-                            Filter minCondition =
-                                    ff.lessOrEqual(
-                                            ff.literal(minValue),
-                                            ff.property(additionalPropertyName));
-
-                            filters.add(ff.and(Arrays.asList(maxCondition, minCondition)));
-                            continue;
-                        } else {
-                            value = maxValue;
-                        }
-                    }
-                    filters.add(
-                            ff.and(
-                                    ff.lessOrEqual(ff.property(propertyName), ff.literal(value)),
-                                    ff.greaterOrEqual(
-                                            ff.property(additionalPropertyName),
-                                            ff.literal(value))));
-                }
-            }
-            return ff.or(filters);
+            return new DomainFilterBuilder(identifier, propertyName, additionalPropertyName)
+                    .createFilter(values);
         }
     }
 
@@ -713,7 +651,7 @@ public class RasterManager implements Cloneable {
                 propertyName = extractAttributes(propertyName);
 
                 // Getting 2 attributes for this domain
-                String properties[] = propertyName.split(Utils.RANGE_SPLITTER_CHAR);
+                String[] properties = propertyName.split(Utils.RANGE_SPLITTER_CHAR);
                 if (properties == null || properties.length != 2) {
                     throw new IllegalArgumentException(
                             "Malformed domain with ranges: it should contain 2 attributes");
@@ -1070,27 +1008,31 @@ public class RasterManager implements Cloneable {
             // it would be useful to cache the result of a query for
             // a specific EPSG code on the index, so that a DB access won't be
             // repeated while the info is in cache.
+            CacheLoader<Integer, Boolean> loader =
+                    new CacheLoader<Integer, Boolean>() {
 
+                        @Override
+                        public Boolean load(Integer epsgCode) throws Exception {
+                            Query query = new Query(typeName);
+                            String crsAttribute = getCrsAttribute();
+                            query.setPropertyNames(Arrays.asList(crsAttribute));
+                            FilterFactory2 ff = FeatureUtilities.DEFAULT_FILTER_FACTORY;
+                            query.setFilter(
+                                    ff.equals(
+                                            ff.property(crsAttribute),
+                                            ff.literal("EPSG:" + epsgCode)));
+                            query.setMaxFeatures(1);
+                            SimpleFeature first =
+                                    DataUtilities.first(granuleCatalog.getGranules(query));
+                            return first != null;
+                        }
+                    };
             alternativeCRSCache =
                     CacheBuilder.newBuilder()
                             .maximumSize(ALTERNATIVE_CRS_CACHE_SIZE)
                             .expireAfterWrite(
                                     ALTERNATIVE_CRS_CACHE_EXPIRATION_SECONDS, TimeUnit.SECONDS)
-                            .build(
-                                    new CacheLoader<Integer, Boolean>() {
-
-                                        @Override
-                                        public Boolean load(Integer epsgCode) throws Exception {
-                                            Query query = new Query(typeName);
-                                            String crsAttribute = getCrsAttribute();
-                                            query.setPropertyNames(Arrays.asList(crsAttribute));
-                                            final UniqueVisitor visitor =
-                                                    new UniqueVisitor(crsAttribute);
-                                            granuleCatalog.computeAggregateFunction(query, visitor);
-                                            Set set = visitor.getUnique();
-                                            return set != null && set.contains("EPSG:" + epsgCode);
-                                        }
-                                    });
+                            .build(loader);
         }
     }
 
@@ -1109,10 +1051,7 @@ public class RasterManager implements Cloneable {
                         new RenderingHints(Utils.AUXILIARY_DATASTORE_PATH, auxiliaryDatastorePath));
                 update = true;
             }
-            if (update
-                    && (configuration.getCatalogConfigurationBean().getPathType()
-                            != PathType.ABSOLUTE)
-                    && !hints.containsKey(Utils.PARENT_DIR)) {
+            if (update && !hints.containsKey(Utils.PARENT_DIR)) {
                 String parentDir = null;
                 if (parentReader.parentDirectory != null) {
                     parentDir = parentReader.parentDirectory.getAbsolutePath();
@@ -1122,7 +1061,7 @@ public class RasterManager implements Cloneable {
                         parentDir = ((File) source).getAbsolutePath();
                     }
                 }
-                hints.add(new RenderingHints(Utils.PARENT_DIR, parentDir));
+                if (parentDir != null) hints.add(new RenderingHints(Utils.PARENT_DIR, parentDir));
             }
         }
     }
@@ -1180,8 +1119,10 @@ public class RasterManager implements Cloneable {
                 dimensionDescriptors.addAll(domainsManager.dimensions);
             } else {
                 DimensionDescriptor crsDimension =
-                        domainsManager.addDimension(Utils.CRS_DOMAIN, attributeName);
-                dimensionDescriptors.add(crsDimension);
+                        domainsManager.addDimension(DimensionDescriptor.CRS, attributeName);
+                if (!dimensionDescriptors.stream()
+                        .anyMatch(dd -> DimensionDescriptor.CRS.equalsIgnoreCase(dd.getName())))
+                    dimensionDescriptors.add(crsDimension);
             }
         }
     }
@@ -1394,8 +1335,7 @@ public class RasterManager implements Cloneable {
                 FeatureUtilities.DEFAULT_FILTER_FACTORY.property(attribute);
         query.setPropertyNames(Arrays.asList(attribute, secondAttribute));
 
-        final SortByImpl[] sb =
-                new SortByImpl[] {new SortByImpl(propertyName, SortOrder.ASCENDING)};
+        final SortByImpl[] sb = {new SortByImpl(propertyName, SortOrder.ASCENDING)};
         // Checking whether it supports sorting capabilities
         if (granuleCatalog.getQueryCapabilities(typeName).supportsSorting(sb)) {
             query.setSortBy(sb);
@@ -1415,6 +1355,11 @@ public class RasterManager implements Cloneable {
                 : ((RangeVisitor) visitor).getRange();
     }
 
+    /**
+     * Checks if this EPSG code matches at least one feature. Since this method may perform a
+     * database query to find out, it's important to call it last while performing conditionals,
+     * leaving cheaper tests first.
+     */
     public boolean hasAlternativeCRS(Integer epsgCode) throws IOException {
         try {
             return epsgCode != null && heterogeneousCRS ? alternativeCRSCache.get(epsgCode) : false;
@@ -1617,8 +1562,7 @@ public class RasterManager implements Cloneable {
         // original gridrange (estimated). I am using the floor here in order to make sure
         // we always stays inside the real area that we have for the granule
         OverviewLevel highResOvLevel = overviewsController.resolutionsLevels.get(0);
-        final double highestRes[] =
-                new double[] {highResOvLevel.resolutionX, highResOvLevel.resolutionY};
+        final double[] highestRes = {highResOvLevel.resolutionX, highResOvLevel.resolutionY};
         GridEnvelope2D originalGridRange =
                 new GridEnvelope2D(
                         new Rectangle(
@@ -1788,17 +1732,12 @@ public class RasterManager implements Cloneable {
         return parentReader;
     }
 
-    public RasterManager getForGranuleCRS(
-            GranuleDescriptor templateDescriptor, ReferencedEnvelope requestBounds)
-            throws Exception {
-        return getForGranuleCRS(templateDescriptor, requestBounds, requestBounds);
-    }
-
     /**
      * Builds a RasterManager for the sub mosaic of a given template granule, and within a given
      * search bounds
      */
     public RasterManager getForGranuleCRS(
+            RasterLayerRequest request,
             GranuleDescriptor templateDescriptor,
             ReferencedEnvelope requestBounds,
             ReferencedEnvelope requestBoundsQuery)
@@ -1811,8 +1750,8 @@ public class RasterManager implements Cloneable {
         // requestBounds and requestBoundsQuery are the same object
         boolean useAlternativeCRS =
                 heterogeneousCRS
-                        && hasAlternativeCRS(CRS.lookupEpsgCode(requestedCRS, false))
-                        && !requestBounds.equals(requestBoundsQuery);
+                        && !requestBounds.equals(requestBoundsQuery)
+                        && hasAlternativeCRS(CRS.lookupEpsgCode(requestedCRS, false));
         CoordinateReferenceSystem referenceCRS =
                 useAlternativeCRS ? requestedCRS : spatialDomainManager.coverageCRS2D;
         if (CRS.equalsIgnoreMetadata(referenceCRS, granuleCRS)) {
@@ -1820,7 +1759,8 @@ public class RasterManager implements Cloneable {
         }
 
         // compute the bounds of the sub-mosaic in that CRS
-        ReferencedEnvelope bounds = getBoundsForGranuleCRS(templateDescriptor, requestBoundsQuery);
+        ReferencedEnvelope bounds =
+                getBoundsForGranuleCRS(request, templateDescriptor, requestBoundsQuery);
         ReferencedEnvelope targetBounds = reprojectBounds(requestBounds, granuleCRS, bounds);
 
         // rebuild the raster manager
@@ -1844,7 +1784,7 @@ public class RasterManager implements Cloneable {
         OverviewLevel level = templateDescriptor.getOverviewsController().getLevel(0);
         // original gridrange (estimated). I am using the floor here in order to make sure
         // we always stays inside the real area that we have for the granule
-        final double highestRes[] = new double[] {level.resolutionX, level.resolutionY};
+        final double[] highestRes = {level.resolutionX, level.resolutionY};
         GridEnvelope2D originalGridRange =
                 new GridEnvelope2D(
                         new Rectangle(
@@ -1897,8 +1837,10 @@ public class RasterManager implements Cloneable {
      * general, the whole mosaic bounds in the granule local CRS)
      */
     private ReferencedEnvelope getBoundsForGranuleCRS(
-            GranuleDescriptor templateDescriptor, ReferencedEnvelope requestBounds)
-            throws IOException {
+            RasterLayerRequest request,
+            GranuleDescriptor templateDescriptor,
+            ReferencedEnvelope requestBounds)
+            throws IOException, FactoryException, TransformException {
 
         String crsAttribute = getCrsAttribute();
         if (crsAttribute == null) {
@@ -1907,24 +1849,24 @@ public class RasterManager implements Cloneable {
                             + "the 'crs' property is missing from the index schema");
         }
 
-        String granuleCRSCode =
-                (String) templateDescriptor.getOriginator().getAttribute(crsAttribute);
+        Object granuleCRSCode =
+                Utils.getAttribute(templateDescriptor.getOriginator(), crsAttribute);
         FilterFactory2 ff = FeatureUtilities.DEFAULT_FILTER_FACTORY;
         PropertyIsEqualTo crsFilter =
                 ff.equal(ff.property(crsAttribute), ff.literal(granuleCRSCode), false);
-        BBOX bbox = ff.bbox(ff.property(""), requestBounds);
-        Filter filter = ff.and(crsFilter, bbox);
 
         GranuleSource granuleSource = getGranuleSource(true, null);
-        Query q = new Query(granuleSource.getSchema().getTypeName(), filter);
+        MosaicQueryBuilder builder = new MosaicQueryBuilder(request, requestBounds);
+        Query q = builder.build();
+        q.setFilter(ff.and(q.getFilter(), crsFilter));
         SimpleFeatureCollection granules = granuleSource.getGranules(q);
         ReferencedEnvelope bounds = granules.getBounds();
         return bounds;
     }
 
     /**
-     * Returns the name of the crs attribute in heterogeneous mosaics (for non heterogenous ones, it
-     * will return null
+     * Returns the name of the crs attribute in heterogeneous mosaics (for non-heterogenous ones, it
+     * will return null)
      */
     public String getCrsAttribute() throws IOException {
         String crsAttribute = configuration.getCRSAttribute();
@@ -1934,6 +1876,10 @@ public class RasterManager implements Cloneable {
 
         GranuleSource granuleSource = getGranuleSource(true, null);
         if (granuleSource.getSchema().getDescriptor(crsAttribute) == null) {
+            if (heterogeneousCRS)
+                throw new IllegalStateException(
+                        "Invalid heterogeneous mosaic configuration, "
+                                + "the 'crs' property is missing from the index schema");
             return null;
         }
 
@@ -1948,5 +1894,10 @@ public class RasterManager implements Cloneable {
     /** The attribute containing the location information for the single granules */
     public String getLocationAttribute() {
         return getParentReader().locationAttributeName;
+    }
+
+    /** Returns the coverage name */
+    public String getName() {
+        return name;
     }
 }

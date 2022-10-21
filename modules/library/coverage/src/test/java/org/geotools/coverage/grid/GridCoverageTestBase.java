@@ -325,14 +325,9 @@ public class GridCoverageTestBase extends CoverageTestBase {
                                         raster.setSample(x, y, 0, x + y);
                                     }
                                 }
-                                final Color[] colors =
-                                        new Color[] {
-                                            Color.BLUE,
-                                            Color.CYAN,
-                                            Color.WHITE,
-                                            Color.YELLOW,
-                                            Color.RED
-                                        };
+                                final Color[] colors = {
+                                    Color.BLUE, Color.CYAN, Color.WHITE, Color.YELLOW, Color.RED
+                                };
                                 return factory.create(
                                         "Float coverage",
                                         raster,
@@ -405,6 +400,7 @@ public class GridCoverageTestBase extends CoverageTestBase {
      * @throws IOException if an I/O operation was needed and failed.
      * @throws ClassNotFoundException Should never happen.
      */
+    @SuppressWarnings("BanSerializableRead")
     protected static GridCoverage2D serialize(GridCoverage2D coverage)
             throws IOException, ClassNotFoundException {
         coverage.tileEncoding = null;
@@ -416,13 +412,11 @@ public class GridCoverageTestBase extends CoverageTestBase {
         try (ObjectOutputStream out = new ObjectOutputStream(buffer)) {
             out.writeObject(coverage);
         }
-        final ObjectInputStream in =
-                new ObjectInputStream(new ByteArrayInputStream(buffer.toByteArray()));
+
         GridCoverage2D read;
-        try {
+        try (ObjectInputStream in =
+                new ObjectInputStream(new ByteArrayInputStream(buffer.toByteArray()))) {
             read = (GridCoverage2D) in.readObject();
-        } finally {
-            in.close();
         }
         assertNotSame(read, coverage);
         coverage = read;

@@ -135,7 +135,7 @@ import org.opengis.filter.temporal.TOverlaps;
  * @author ported to work upon {@code org.geotools.filter.Capabilities} by Gabriel Roldan
  * @since 2.5.3
  */
-@SuppressWarnings({"nls", "unchecked"})
+@SuppressWarnings("unchecked")
 public class CapabilitiesFilterSplitter implements FilterVisitor, ExpressionVisitor {
 
     private static final Logger LOGGER =
@@ -536,19 +536,18 @@ public class CapabilitiesFilterSplitter implements FilterVisitor, ExpressionVisi
     private void visitBinarySpatialOperator(BinarySpatialOperator filter) {
         if (original == null) original = filter;
 
-        Class[] spatialOps =
-                new Class[] {
-                    Beyond.class,
-                    Contains.class,
-                    Crosses.class,
-                    Disjoint.class,
-                    DWithin.class,
-                    Equals.class,
-                    Intersects.class,
-                    Overlaps.class,
-                    Touches.class,
-                    Within.class
-                };
+        Class[] spatialOps = {
+            Beyond.class,
+            Contains.class,
+            Crosses.class,
+            Disjoint.class,
+            DWithin.class,
+            Equals.class,
+            Intersects.class,
+            Overlaps.class,
+            Touches.class,
+            Within.class
+        };
 
         for (Class spatialOp : spatialOps) {
             if (spatialOp.isAssignableFrom(filter.getClass())) {
@@ -940,33 +939,36 @@ public class CapabilitiesFilterSplitter implements FilterVisitor, ExpressionVisi
 
     /** @see org.geotools.filter.FilterVisitor#visit(org.geotools.filter.FunctionExpression) */
     @Override
-    public Object visit(Function expression, Object notUsed) {
-        if (!fcs.fullySupports(expression)) {
-            postStack.push(expression);
+    public Object visit(Function function, Object notUsed) {
+        if (!fcs.fullySupports(function)) {
+            postStack.push(function);
             return null;
         }
 
-        if (expression.getName() == null) {
-            postStack.push(expression);
+        if (function.getName() == null) {
+            postStack.push(function);
             return null;
         }
 
-        int i = postStack.size();
-        int j = preStack.size();
+        final int postSize = postStack.size();
+        final int preSize = preStack.size();
 
-        for (int k = 0; k < expression.getParameters().size(); k++) {
-            expression.getParameters().get(i).accept(this, null);
+        final List<Expression> parameters = function.getParameters();
+        for (Expression param : parameters) {
+            param.accept(this, null);
 
-            if (i < postStack.size()) {
-                while (j < preStack.size()) preStack.pop();
+            if (postSize < postStack.size()) {
+                while (preSize < preStack.size()) {
+                    preStack.pop();
+                }
                 postStack.pop();
-                postStack.push(expression);
+                postStack.push(function);
 
                 return null;
             }
         }
-        while (j < preStack.size()) preStack.pop();
-        preStack.push(expression);
+        while (preSize < preStack.size()) preStack.pop();
+        preStack.push(function);
         return null;
     }
 

@@ -325,7 +325,7 @@ public class SLDColorMapBuilder {
 
                 switch (linearColorMapType) {
                     case ColorMap.TYPE_RAMP:
-                        Color[] colors = new Color[] {lastColorValue, newColorValue};
+                        Color[] colors = {lastColorValue, newColorValue};
                         int previousMaximum = previous.getOutputRange().getMax().intValue();
                         // the piecewise machinery will complain if we have different colors
                         // on touching ranges, work around it by not including the previous
@@ -428,7 +428,7 @@ public class SLDColorMapBuilder {
      */
     public double[] getValuesToPreserve() {
         if (this.preservedValues.isEmpty()) return new double[0];
-        final double retVal[] = new double[this.preservedValues.size()];
+        final double[] retVal = new double[this.preservedValues.size()];
         int i = 0;
         for (Double value : preservedValues) retVal[i++] = value.doubleValue();
         return retVal;
@@ -673,7 +673,7 @@ public class SLDColorMapBuilder {
         // all of them
         //
         // /////////////////////////////////////////////////////////////////////
-        final LinearColorMapElement preservedValuesElement[] =
+        final LinearColorMapElement[] preservedValuesElement =
                 new LinearColorMapElement[preservedValues.size()];
         final int value = (int) last.getOutputMaximum() + 1;
         for (int i = 0; i < preservedValuesElement.length; i++) {

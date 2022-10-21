@@ -20,6 +20,7 @@ import java.net.URISyntaxException;
 import java.net.URL;
 import java.util.List;
 import java.util.Properties;
+import java.util.logging.Level;
 import java.util.logging.Logger;
 import org.geotools.data.ows.OperationType;
 import org.geotools.ows.wms.CRSEnvelope;
@@ -79,9 +80,8 @@ public class WMTSCapabilitiesTest {
 
             Assert.assertEquals("OML_Foreshore", l0.getTitle());
             Assert.assertNull(l0.getParent());
-            Assert.assertTrue(
-                    l0.getSrs().contains("urn:ogc:def:crs:EPSG::4326")); // case should not matter
-            Assert.assertEquals(4, l0.getBoundingBoxes().size());
+            // case should not matter
+            Assert.assertEquals(3, l0.getBoundingBoxes().size());
 
             Assert.assertEquals(2, l0.getTileMatrixLinks().size());
             TileMatrixSetLink tmsl0 = l0.getTileMatrixLinks().get("EPSG:4326");
@@ -104,13 +104,25 @@ public class WMTSCapabilitiesTest {
             CRSEnvelope bbox = layers.get(1).getBoundingBoxes().get("EPSG:4326");
             Assert.assertNotNull(bbox);
         } catch (Exception e) {
-            java.util.logging.Logger.getGlobal().log(java.util.logging.Level.INFO, "", e);
+            Logger.getGlobal().log(Level.INFO, "", e);
             if ((e.getMessage() != null) && e.getMessage().indexOf("timed out") > 0) {
                 LOGGER.warning("Unable to test - timed out: " + e);
             } else {
                 throw (e);
             }
         }
+    }
+
+    /**
+     * A Layer might have a MatrixSetLink with an identifier that isn't within the MatrixSet's. Such
+     * a link should be removed.
+     */
+    @Test
+    public void testMissingMatrixSetLink() throws Exception {
+        WMTSCapabilities capabilities = createCapabilities("nasa.getcapa.xml");
+        WMTSLayer layer = capabilities.getLayer("Blue_Marble_Extended");
+        TileMatrixSetLink link = layer.getTileMatrixLinks().get("1.5km");
+        Assert.assertNull("1.5km isn't defined as a MatrixSet and should be omitted.", link);
     }
 
     @Test
@@ -140,10 +152,6 @@ public class WMTSCapabilitiesTest {
 
             Assert.assertEquals("ch.are.agglomerationen_isolierte_staedte", l0.getName());
             Assert.assertNull(l0.getParent());
-            Assert.assertTrue(l0.getSrs().contains("urn:ogc:def:crs:EPSG::2056")); // case
-            // should
-            // not
-            // matter
             Assert.assertTrue(l0.getSrs().contains("EPSG:2056")); // case should not
             // matter
 
@@ -169,11 +177,8 @@ public class WMTSCapabilitiesTest {
                     capabilities.getMatrixSets().get(0).getMatrices().get(0).getDenominator(),
                     0d);
 
-            CRSEnvelope bbox = layers.get(1).getBoundingBoxes().get("EPSG:4326");
-            Assert.assertNotNull(bbox);
-
         } catch (Exception e) {
-            java.util.logging.Logger.getGlobal().log(java.util.logging.Level.INFO, "", e);
+            Logger.getGlobal().log(Level.INFO, "", e);
             if ((e.getMessage() != null) && e.getMessage().indexOf("timed out") > 0) {
                 LOGGER.warning("Unable to test - timed out: " + e);
             } else {
@@ -203,7 +208,7 @@ public class WMTSCapabilitiesTest {
             OperationType getTile = request.getGetTile();
             Assert.assertNotNull(getTile);
 
-            Assert.assertEquals(519, capabilities.getLayerList().size());
+            Assert.assertEquals(520, capabilities.getLayerList().size());
 
             List<WMTSLayer> layers = capabilities.getLayerList();
             WMTSLayer l0 = layers.get(0);
@@ -221,11 +226,11 @@ public class WMTSCapabilitiesTest {
             Assert.assertTrue(
                     "Bad dimension name (Time!=" + dimName + ")", "Time".equalsIgnoreCase(dimName));
 
-            CRSEnvelope bbox = layers.get(1).getBoundingBoxes().get("EPSG:4326");
+            CRSEnvelope bbox = layers.get(1).getBoundingBoxes().get("CRS:84");
             Assert.assertNotNull(bbox);
 
         } catch (Exception e) {
-            java.util.logging.Logger.getGlobal().log(java.util.logging.Level.INFO, "", e);
+            Logger.getGlobal().log(Level.INFO, "", e);
             if ((e.getMessage() != null) && e.getMessage().indexOf("timed out") > 0) {
                 LOGGER.warning("Unable to test - timed out: " + e);
             } else {
@@ -284,7 +289,7 @@ public class WMTSCapabilitiesTest {
             WMTSLayer l0 = layers.get(0);
 
             Assert.assertEquals("brtachtergrondkaart", l0.getName());
-            Assert.assertTrue(l0.getSrs().contains("urn:ogc:def:crs:EPSG::28992")); // case
+            Assert.assertTrue(l0.getSrs().contains("EPSG:28992")); // case
 
         } catch (Exception e) {
             // a standard catch block shared with the other tests
@@ -306,6 +311,20 @@ public class WMTSCapabilitiesTest {
         Assert.assertNotNull(address.getCity());
         Assert.assertNotNull(address.getCountry());
         Assert.assertNotNull(address.getElectronicMailAddresses());
+    }
+
+    /**
+     * The section OperationsMetadata of GetCapabilities is optional. WMTSCapabilities used as
+     * argument for WebMapTileServer shouldn't make a NullPointerException.
+     */
+    @Test
+    public void testMissingOperationsMetadata() throws Exception {
+        WMTSCapabilities capabilities = createCapabilities("linz_basemaps_capabilities.xml");
+        WebMapTileServer tileServer =
+                new WebMapTileServer(
+                        new URL("https://basemaps.linz.govt.nz/v1/tiles/WMTSCapabilities.xml"),
+                        capabilities);
+        Assert.assertNotNull(tileServer);
     }
 
     protected WebMapTileServer getCustomWMS(URL featureURL)

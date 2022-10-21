@@ -16,6 +16,12 @@
  */
 package org.geotools.gce.imagepyramid;
 
+import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertNotNull;
+import static org.junit.Assert.assertNull;
+import static org.junit.Assert.assertTrue;
+
 import java.awt.Color;
 import java.awt.Dimension;
 import java.awt.Rectangle;
@@ -67,7 +73,7 @@ import org.opengis.referencing.NoSuchAuthorityCodeException;
  *     and referenced by URLs
  * @since 2.3
  */
-public class ImagePyramidReaderTest extends ImageLevelsMapperTest {
+public class ImagePyramidReaderTest extends AbstractPyramidTest {
 
     /** File to be used for testing purposes. */
     private static final String TEST_FILE = "pyramid.properties";
@@ -160,14 +166,13 @@ public class ImagePyramidReaderTest extends ImageLevelsMapperTest {
         FileUtils.copyDirectory(sourceDir, targetDir);
 
         // remove the files we want to recreate
-        File[] dirs =
-                new File[] {
-                    targetDir,
-                    new File(targetDir, "0"),
-                    new File(targetDir, "2"),
-                    new File(targetDir, "4"),
-                    new File(targetDir, "8")
-                };
+        File[] dirs = {
+            targetDir,
+            new File(targetDir, "0"),
+            new File(targetDir, "2"),
+            new File(targetDir, "4"),
+            new File(targetDir, "8")
+        };
         FileFilter metadataFilter = FileFilterUtils.prefixFileFilter("pyramid.");
         for (File dir : dirs) {
             for (File file : dir.listFiles(metadataFilter)) {
@@ -837,7 +842,7 @@ public class ImagePyramidReaderTest extends ImageLevelsMapperTest {
         assertNotNull(reader);
         assertEquals(2, reader.getGridCoverageCount());
 
-        String coverageNames[] = reader.getGridCoverageNames();
+        String[] coverageNames = reader.getGridCoverageNames();
         Arrays.sort(coverageNames);
         assertEquals("gray", coverageNames[0]);
         assertEquals("rgb", coverageNames[1]);

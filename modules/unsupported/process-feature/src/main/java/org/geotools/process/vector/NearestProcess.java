@@ -49,10 +49,9 @@ import si.uom.SI;
 import systems.uom.common.USCustomary;
 
 @DescribeProcess(
-    title = "Nearest Feature",
-    description =
-            "Returns the feature in a given feature collection that has the smallest distance to a given point."
-)
+        title = "Nearest Feature",
+        description =
+                "Returns the feature in a given feature collection that has the smallest distance to a given point.")
 public class NearestProcess implements VectorProcess {
     private static final Logger LOGGER = Logging.getLogger(NearestProcess.class);
 
@@ -72,11 +71,10 @@ public class NearestProcess implements VectorProcess {
             @DescribeParameter(name = "point", description = "Point from which to compute distance")
                     Point point,
             @DescribeParameter(
-                        name = "crs",
-                        min = 0,
-                        description =
-                                "Coordinate reference system of the collection and point (default is the input collection CRS)"
-                    )
+                            name = "crs",
+                            min = 0,
+                            description =
+                                    "Coordinate reference system of the collection and point (default is the input collection CRS)")
                     CoordinateReferenceSystem crs)
             throws ProcessException {
         try {
@@ -113,14 +111,12 @@ public class NearestProcess implements VectorProcess {
                             new DistanceOp(
                                     point, (Geometry) f.getDefaultGeometryProperty().getValue());
                     Coordinate[] co = op.nearestPoints();
-                    double[] co0 =
-                            new double[] {
-                                co[0].x, co[0].y,
-                            };
-                    double[] co1 =
-                            new double[] {
-                                co[1].x, co[1].y,
-                            };
+                    double[] co0 = {
+                        co[0].x, co[0].y,
+                    };
+                    double[] co1 = {
+                        co[1].x, co[1].y,
+                    };
                     double[] geo0 = new double[2];
                     double[] geo1 = new double[2];
                     crsTransform.transform(co0, 0, geo0, 0, 1);

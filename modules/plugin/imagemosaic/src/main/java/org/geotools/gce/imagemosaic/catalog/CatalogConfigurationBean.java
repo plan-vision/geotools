@@ -17,9 +17,14 @@
 package org.geotools.gce.imagemosaic.catalog;
 
 import java.lang.reflect.InvocationTargetException;
+import java.util.Iterator;
+import javax.imageio.spi.IIORegistry;
+import javax.imageio.spi.ImageInputStreamSpi;
+import javax.imageio.spi.ImageReaderSpi;
 import org.apache.commons.beanutils.BeanUtils;
+import org.geotools.coverage.grid.io.AbstractGridFormat;
 import org.geotools.gce.imagemosaic.PathType;
-import org.geotools.gce.imagemosaic.URLSourceSPIProvider;
+import org.geotools.gce.imagemosaic.SourceSPIProviderFactory;
 import org.geotools.gce.imagemosaic.Utils;
 import org.geotools.util.Utilities;
 
@@ -47,7 +52,9 @@ public class CatalogConfigurationBean {
 
     private boolean heterogeneousCRS;
 
-    private URLSourceSPIProvider urlSourceSPIProvider;
+    private SourceSPIProviderFactory urlSourceSPIProvider;
+
+    private boolean skipExternalOverviews;
 
     /**
      * Whether the specified store should be wrapped. Only PostGis stores support this parameter.
@@ -56,6 +63,15 @@ public class CatalogConfigurationBean {
     private boolean wrapStore = false;
 
     private PathType pathType;
+
+    /** The coverage name */
+    private String name;
+
+    /** Caches for resolved formats/SPIs */
+    private transient AbstractGridFormat resolvedFormat;
+
+    private transient ImageReaderSpi resolvedSuggestedSPI;
+    private transient ImageInputStreamSpi resolvedIsSPI;
 
     public CatalogConfigurationBean() {}
 
@@ -97,6 +113,24 @@ public class CatalogConfigurationBean {
     /** @return the suggestedSPI */
     public String getSuggestedSPI() {
         return suggestedSPI;
+    }
+
+    public ImageReaderSpi suggestedSPI() {
+        if (suggestedSPI == null) return null;
+        if (resolvedSuggestedSPI == null) resolvedSuggestedSPI = getImageReaderSpi(suggestedSPI);
+        return resolvedSuggestedSPI;
+    }
+
+    static ImageReaderSpi getImageReaderSpi(String className) {
+        Iterator<ImageReaderSpi> serviceProviders =
+                IIORegistry.lookupProviders(ImageReaderSpi.class);
+        while (serviceProviders.hasNext()) {
+            ImageReaderSpi serviceProvider = serviceProviders.next();
+            if (serviceProvider.getClass().getName() == className) {
+                return serviceProvider;
+            }
+        }
+        return null;
     }
 
     /** @param suggestedSPI the suggestedSPI to set */
@@ -144,19 +178,55 @@ public class CatalogConfigurationBean {
         this.suggestedFormat = suggestedFormat;
     }
 
+    public AbstractGridFormat suggestedFormat() throws ReflectiveOperationException {
+        if (suggestedFormat == null) return null;
+        if (resolvedFormat == null) {
+            resolvedFormat =
+                    (AbstractGridFormat)
+                            Class.forName(suggestedFormat).getDeclaredConstructor().newInstance();
+        }
+        return resolvedFormat;
+    }
+
     public String getSuggestedIsSPI() {
         return suggestedIsSPI;
+    }
+
+    public ImageInputStreamSpi suggestedIsSPI() throws ReflectiveOperationException {
+        if (suggestedIsSPI == null) return null;
+        if (resolvedIsSPI == null) {
+            resolvedIsSPI =
+                    (ImageInputStreamSpi)
+                            Class.forName(suggestedIsSPI).getDeclaredConstructor().newInstance();
+        }
+        return resolvedIsSPI;
     }
 
     public void setSuggestedIsSPI(String suggestedIsSPI) {
         this.suggestedIsSPI = suggestedIsSPI;
     }
 
-    public URLSourceSPIProvider getUrlSourceSPIProvider() {
+    public SourceSPIProviderFactory getUrlSourceSPIProvider() {
         return urlSourceSPIProvider;
     }
 
-    public void setUrlSourceSPIProvider(URLSourceSPIProvider urlSourceSPIProvider) {
+    public void setUrlSourceSPIProvider(SourceSPIProviderFactory urlSourceSPIProvider) {
         this.urlSourceSPIProvider = urlSourceSPIProvider;
+    }
+
+    public boolean isSkipExternalOverviews() {
+        return skipExternalOverviews;
+    }
+
+    public void setSkipExternalOverviews(boolean skipExternalOverviews) {
+        this.skipExternalOverviews = skipExternalOverviews;
+    }
+
+    public void setName(String name) {
+        this.name = name;
+    }
+
+    public String getName() {
+        return name;
     }
 }

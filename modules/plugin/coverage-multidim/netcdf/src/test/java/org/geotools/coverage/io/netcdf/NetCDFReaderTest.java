@@ -22,6 +22,7 @@ import java.awt.Rectangle;
 import java.io.File;
 import java.io.IOException;
 import java.net.URL;
+import java.security.NoSuchAlgorithmException;
 import java.text.ParseException;
 import java.text.SimpleDateFormat;
 import java.util.ArrayList;
@@ -37,6 +38,7 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.TimeZone;
 import javax.media.jai.PlanarImage;
+import javax.xml.bind.JAXBException;
 import org.apache.commons.io.FileUtils;
 import org.apache.commons.io.FilenameUtils;
 import org.geotools.coverage.GridSampleDimension;
@@ -48,6 +50,7 @@ import org.geotools.coverage.grid.io.DimensionDescriptor;
 import org.geotools.coverage.grid.io.GridCoverage2DReader;
 import org.geotools.coverage.grid.io.GridFormatFinder;
 import org.geotools.coverage.grid.io.StructuredGridCoverage2DReader;
+import org.geotools.coverage.io.catalog.DataStoreConfiguration;
 import org.geotools.coverage.processing.CoverageProcessor;
 import org.geotools.coverage.util.CoverageUtilities;
 import org.geotools.coverage.util.FeatureUtilities;
@@ -59,6 +62,7 @@ import org.geotools.gce.imagemosaic.ImageMosaicFormat;
 import org.geotools.gce.imagemosaic.Utils;
 import org.geotools.geometry.DirectPosition2D;
 import org.geotools.geometry.GeneralEnvelope;
+import org.geotools.imageio.netcdf.AncillaryFileManager;
 import org.geotools.imageio.netcdf.utilities.NetCDFUtilities;
 import org.geotools.metadata.iso.extent.GeographicBoundingBoxImpl;
 import org.geotools.referencing.CRS;
@@ -202,7 +206,7 @@ public class NetCDFReaderTest extends Assert {
         File file = TestData.file(this, "o3_no2_so.nc");
         NetCDFReader reader = new NetCDFReader(file, null);
         String coverageName = "NO2";
-        GeneralParameterValue[] values = new GeneralParameterValue[] {};
+        GeneralParameterValue[] values = {};
         GridCoverage2D coverage = reader.read(coverageName, values);
 
         float[] result =
@@ -230,7 +234,7 @@ public class NetCDFReaderTest extends Assert {
         File file = TestData.file(this, "20130101.METOPA.GOME2.NO2.DUMMY_3.nc");
         final NetCDFReader reader = new NetCDFReader(file, null);
         String coverageName = "z";
-        GeneralParameterValue[] values = new GeneralParameterValue[] {};
+        GeneralParameterValue[] values = {};
         GridCoverage2D coverage = reader.read(coverageName, values);
         GridSampleDimension sampleDimension = coverage.getSampleDimension(0);
         double min = sampleDimension.getMinimumValue();
@@ -365,7 +369,7 @@ public class NetCDFReaderTest extends Assert {
                             }
                         });
 
-                GeneralParameterValue[] values = new GeneralParameterValue[] {gg, time, elevation};
+                GeneralParameterValue[] values = {gg, time, elevation};
                 GridCoverage2D coverage = reader.read(coverageName, values);
                 assertNotNull(coverage);
                 if (TestData.isInteractiveTest()) {
@@ -473,7 +477,7 @@ public class NetCDFReaderTest extends Assert {
                 Filter filter = FF.equals(FF.property("z"), FF.literal(450.0));
                 filterParam.setValue(filter);
 
-                GeneralParameterValue[] values = new GeneralParameterValue[] {filterParam};
+                GeneralParameterValue[] values = {filterParam};
                 GridCoverage2D coverage = reader.read(coverageName, values);
                 assertNotNull(coverage);
                 if (TestData.isInteractiveTest()) {
@@ -868,7 +872,7 @@ public class NetCDFReaderTest extends Assert {
                     }
                 }
 
-                GeneralParameterValue[] values = new GeneralParameterValue[] {gg, sigmaValue};
+                GeneralParameterValue[] values = {gg, sigmaValue};
                 GridCoverage2D coverage = reader.read(coverageName, values);
                 assertNotNull(coverage);
                 if (TestData.isInteractiveTest()) {
@@ -944,6 +948,52 @@ public class NetCDFReaderTest extends Assert {
     }
 
     @Test
+    @SuppressWarnings("PMD.UseShortArrayInitializer")
+    public void NetCDFTinyRead() throws FactoryException, IOException {
+        File dir = new File(TestData.file(this, "."), "2DLatLonCoverageTiny");
+        if (dir.exists()) {
+            FileUtils.deleteDirectory(dir);
+        }
+        assertTrue(dir.mkdirs());
+        File file = TestData.file(this, "2DLatLonCoverage.nc");
+        FileUtils.copyFileToDirectory(file, dir);
+        file = new File(dir, "2DLatLonCoverage.nc");
+
+        final Hints hints =
+                new Hints(Hints.DEFAULT_COORDINATE_REFERENCE_SYSTEM, CRS.decode("EPSG:4326", true));
+        final AbstractGridFormat format = GridFormatFinder.findFormat(file.toURI().toURL(), hints);
+        final NetCDFReader reader = (NetCDFReader) format.getReader(file.toURI().toURL(), hints);
+
+        assertNotNull(format);
+        try {
+            String[] names = reader.getGridCoverageNames();
+            String coverageName = names[0];
+            final ParameterValue<GridGeometry2D> gg =
+                    AbstractGridFormat.READ_GRIDGEOMETRY2D.createValue();
+            final GeneralEnvelope reducedEnvelope =
+                    new GeneralEnvelope(new double[] {7.1, 54}, new double[] {12.1, 63});
+            reducedEnvelope.setCoordinateReferenceSystem(
+                    reader.getCoordinateReferenceSystem(coverageName));
+            final Rectangle rasterArea = new Rectangle(0, 3, 1, 1);
+            final GridEnvelope2D range = new GridEnvelope2D(rasterArea);
+            gg.setValue(new GridGeometry2D(range, reducedEnvelope));
+            GeneralParameterValue[] params = new GeneralParameterValue[] {gg};
+            GridCoverage2D gridCoverage = reader.read(names[0], params);
+            assertNotNull(gridCoverage);
+        } catch (Throwable t) {
+            throw new RuntimeException(t);
+        } finally {
+            if (reader != null) {
+                try {
+                    reader.dispose();
+                } catch (Throwable t) {
+                    // Does nothing
+                }
+            }
+        }
+    }
+
+    @Test
     public void testFileInfo()
             throws NoSuchAuthorityCodeException, FactoryException, IOException, ParseException {
         File nc2 = new File(TestData.file(this, "."), "nc2");
@@ -962,7 +1012,6 @@ public class NetCDFReaderTest extends Assert {
         final NetCDFReader reader = (NetCDFReader) format.getReader(file.toURI().toURL(), hints);
 
         assertNotNull(format);
-        CloseableIterator<FileGroup> files = null;
         try {
             String[] names = reader.getGridCoverageNames();
             names = new String[] {names[1]};
@@ -976,15 +1025,16 @@ public class NetCDFReaderTest extends Assert {
                 ResourceInfo info = reader.getInfo(coverageName);
                 assertTrue(info instanceof FileResourceInfo);
                 FileResourceInfo fileInfo = (FileResourceInfo) info;
-                files = fileInfo.getFiles(null);
-
-                int fileGroups = 0;
                 FileGroup fg = null;
-                while (files.hasNext()) {
-                    fg = files.next();
-                    fileGroups++;
+                try (CloseableIterator<FileGroup> files = fileInfo.getFiles(null)) {
+                    int fileGroups = 0;
+
+                    while (files.hasNext()) {
+                        fg = files.next();
+                        fileGroups++;
+                    }
+                    assertEquals(1, fileGroups);
                 }
-                assertEquals(1, fileGroups);
                 File mainFile = fg.getMainFile();
                 assertEquals("O3-NO2", FilenameUtils.getBaseName(mainFile.getAbsolutePath()));
                 Map<String, Object> metadata = fg.getMetadata();
@@ -1010,9 +1060,6 @@ public class NetCDFReaderTest extends Assert {
         } catch (Throwable t) {
             throw new RuntimeException(t);
         } finally {
-            if (files != null) {
-                files.close();
-            }
             if (reader != null) {
                 try {
                     reader.dispose();
@@ -1052,7 +1099,7 @@ public class NetCDFReaderTest extends Assert {
                     new GridGeometry2D(
                             new GridEnvelope2D(new Rectangle(0, 0, 30, 30)), projectedEnvelope));
 
-            GeneralParameterValue[] values = new GeneralParameterValue[] {gg};
+            GeneralParameterValue[] values = {gg};
             GridCoverage2D coverage = reader.read(coverageName, values);
 
             // reader doesn't perform reprojection. It simply transforms reprojected envelope
@@ -1218,7 +1265,7 @@ public class NetCDFReaderTest extends Assert {
                             }
                         });
 
-                GeneralParameterValue[] values = new GeneralParameterValue[] {time, elevation};
+                GeneralParameterValue[] values = {time, elevation};
                 GridCoverage2D coverage = reader.read(coverageName, values);
                 assertNotNull(coverage);
                 if (TestData.isInteractiveTest()) {
@@ -1295,7 +1342,26 @@ public class NetCDFReaderTest extends Assert {
         assertEquals(d, 0d, DELTA);
     }
 
-    @SuppressWarnings({"rawtypes", "unchecked"})
+    @Test
+    public void NetCDFCachedConfigs() throws IOException, JAXBException, NoSuchAlgorithmException {
+        File netcdf1 = TestData.file(this, "gome/20130101.BrO.DUMMY.nc");
+        File aux = TestData.file(this, "gome/_dummy.xml");
+        File datastore = TestData.file(this, "gome/netcdf_datastore.properties");
+        AncillaryFileManager manager =
+                new AncillaryFileManager(
+                        netcdf1, aux.getAbsolutePath(), datastore.getAbsolutePath());
+        DataStoreConfiguration datastoreConfig1 = manager.getDatastoreConfiguration();
+
+        File netcdf2 = TestData.file(this, "gome/20130101.BrO.DUMMY.nc");
+        manager =
+                new AncillaryFileManager(
+                        netcdf2, aux.getAbsolutePath(), datastore.getAbsolutePath());
+        DataStoreConfiguration datastoreConfig2 = manager.getDatastoreConfiguration();
+
+        Assert.assertSame(datastoreConfig1, datastoreConfig2);
+    }
+
+    @SuppressWarnings("unchecked")
     @Test
     @Ignore
     public void IASI() throws Exception {
@@ -1374,7 +1440,7 @@ public class NetCDFReaderTest extends Assert {
                 }
             }
 
-            GeneralParameterValue[] values = new GeneralParameterValue[] {gg, new_};
+            GeneralParameterValue[] values = {gg, new_};
             GridCoverage2D coverage = reader.read(coverageName, values);
             assertNotNull(coverage);
             if (TestData.isInteractiveTest()) {

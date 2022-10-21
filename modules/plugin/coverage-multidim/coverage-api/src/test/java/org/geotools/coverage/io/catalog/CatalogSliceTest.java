@@ -68,6 +68,7 @@ public class CatalogSliceTest extends Assert {
     private static final double DELTA = 0.01d;
 
     @Test
+    @SuppressWarnings("PMD.UseTryWithResources") // transaction needed in catch
     public void createTest() throws Exception {
         // connect to test catalog
         final File parentLocation = new File(TestData.file(this, "."), "db");
@@ -159,7 +160,7 @@ public class CatalogSliceTest extends Assert {
 
             // Get the CoverageSlices
             List<CoverageSlice> slices = sliceCat.getGranules(q);
-            double[] news = new double[] {3.22, 1.12, 1.32};
+            double[] news = {3.22, 1.12, 1.32};
             for (int i = 0; i < news.length; i++) {
                 CoverageSlice slice = slices.get(i);
                 assertTrue(slice.getGranuleBBOX().contains(referencedEnvelope));
@@ -209,6 +210,7 @@ public class CatalogSliceTest extends Assert {
     }
 
     @Test
+    @SuppressWarnings("PMD.UseTryWithResources") // transaction needed in catch
     public void propertyNamesQuery() throws Exception {
         // connect to test catalog
         final File parentLocation = new File(TestData.file(this, "."), "db2");
@@ -252,7 +254,7 @@ public class CatalogSliceTest extends Assert {
             // read back with property names filtering
             Query q = new Query();
             q.setTypeName(typeNames[0]);
-            String[] propertyNames = new String[] {"cloud_formations"};
+            String[] propertyNames = {"cloud_formations"};
             q.setPropertyNames(propertyNames);
             List<CoverageSlice> granules = sliceCat.getGranules(q);
 
@@ -311,7 +313,6 @@ public class CatalogSliceTest extends Assert {
 
         assertTrue(INTERNAL_STORE_SPI.canProcess(params));
         DataStore ds = null;
-        SimpleFeatureIterator it = null;
         try {
             // create the store
             ds = INTERNAL_STORE_SPI.createDataStore(params);
@@ -343,20 +344,16 @@ public class CatalogSliceTest extends Assert {
 
             final SimpleFeatureCollection fc = fs.getFeatures(q);
             assertFalse(fc.isEmpty());
-            it = fc.features();
-            while (it.hasNext()) {
-                final SimpleFeature feat = it.next();
+            try (SimpleFeatureIterator it = fc.features()) {
+                while (it.hasNext()) {
+                    final SimpleFeature feat = it.next();
 
-                assertTrue((Integer) feat.getAttribute("new") >= 0);
+                    assertTrue((Integer) feat.getAttribute("new") >= 0);
+                }
             }
-
         } finally {
             if (ds != null) {
                 ds.dispose();
-            }
-
-            if (it != null) {
-                it.close();
             }
         }
     }

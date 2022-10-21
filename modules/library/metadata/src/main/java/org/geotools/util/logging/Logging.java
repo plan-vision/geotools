@@ -30,23 +30,19 @@ import org.geotools.util.SuppressFBWarnings;
 import org.geotools.util.XArray;
 
 /**
- * A set of utilities method for configuring loggings in GeoTools. <strong>All GeoTools code should
- * fetch their logger through a call to {@link #getLogger(String)}</strong>, not {@link
+ * Utility class for configuring logging in GeoTools. <strong>All GeoTools code should fetch their
+ * logger through a call to {@link #getLogger(String)}</strong>, not java util logging {@link
  * Logger#getLogger(String)}. This is necessary in order to give GeoTools a chance to redirect log
- * events to an other logging framework, for example <A
- * HREF="http://jakarta.apache.org/commons/logging/">commons-logging</A>.
+ * events to other logging frameworks, for example <A
+ * HREF="https://logging.apache.org/log4j/2.x/">LOG4J</A>, or </A><A
+ * HREF="https://commons.apache.org/proper/commons-logging/">commons-logging</A>.
  *
- * <p><b>Example:</b> In order to redirect every GeoTools log events to Commons-logging, invoke the
+ * <p><b>Example:</b> In order to redirect every GeoTools log events to commons-logging, invoke the
  * following once at application startup:
  *
- * <blockquote>
- *
- * <code>
- * Logging.{@linkplain #GEOTOOLS}.{@linkplain #setLoggerFactory
- * setLoggerFactory}("org.geotools.util.logging.CommonsLoggerFactory");
- * </code>
- *
- * </blockquote>
+ * <pre>
+ * <code>Logging.GEOTOOLS.setLoggerFactory}("org.geotools.util.logging.CommonsLoggerFactory");</code>
+ * </pre>
  *
  * @since 2.4
  * @version $Id$
@@ -54,6 +50,28 @@ import org.geotools.util.XArray;
  */
 @SuppressWarnings("PMD.SystemPrintln")
 public final class Logging {
+
+    /**
+     * The logging level for fatal error resulting in application shutdown. This level is equals or
+     * slightly higher than than {@link Level#SEVERE}.
+     */
+    public static final Level FATAL = new LogLevel("FATAL", 1100);
+
+    /**
+     * The logging level for reporting coverage operations. This level is equals or slightly lower
+     * than {@link Level#INFO}.
+     */
+    public static final Level OPERATION = new LogLevel("OPERATION", 780);
+
+    /** Custom logging level used for FATAL and OPERATION. */
+    protected static class LogLevel extends Level {
+        private static final long serialVersionUID = 6282374566935721556L;
+
+        public LogLevel(final String name, final int level) {
+            super(name, level);
+        }
+    }
+
     /** Compares {@link Logging} or {@link String} objects for alphabetical order. */
     private static final Comparator<Object> COMPARATOR =
             (o1, o2) -> {
@@ -65,12 +83,22 @@ public final class Logging {
     /** An empty array of logging. Also used for locks. */
     private static final Logging[] EMPTY = new Logging[0];
 
-    /** Logging configuration that apply to all packages. */
+    /**
+     * Logging configuration that apply to all packages.
+     *
+     * <p>NOTE: ALL must be created before any other static Logging constant.
+     */
     public static final Logging ALL = new Logging();
-    // NOTE: ALL must be created before any other static Logging constant.
 
     /** Logging configuration that apply only to GeoTools packages. */
     public static final Logging GEOTOOLS = getLogging("org.geotools");
+
+    /**
+     * Logging configuration that apply only to javax.media.jai packages.
+     *
+     * <p>Used by {@link LoggingImagingListener} to route errors reported from JAI framework.
+     */
+    public static final Logging JAI = getLogging("javax.media.jai");
 
     /** The name of the base package. */
     final String name;
@@ -78,9 +106,10 @@ public final class Logging {
     /**
      * The children {@link Logging} objects.
      *
-     * <p>The plain array used there is not efficient for adding new items (an {@code ArrayList}
-     * would be more efficient), but we assume that very few new items will be added. Furthermore a
-     * plain array is efficient for reading, and the later is way more common than the former.
+     * <p>The plain array used here is inefficient for adding new items (an {@code ArrayList} would
+     * be more efficient), but we assume that very few new items will be added. Furthermore, a plain
+     * array is efficient for reading, which is more common and more performance sensitive than
+     * adding.
      */
     private Logging[] children = EMPTY;
 
@@ -301,9 +330,9 @@ public final class Logging {
     }
 
     /**
-     * Sets a new logger factory from a fully qualidifed class name. This method should be preferred
+     * Sets a new logger factory from a fully qualified class name. This method should be preferred
      * to {@link #setLoggerFactory(LoggerFactory)} when the underlying logging framework is not
-     * garanteed to be on the classpath.
+     * guaranteed to be on the classpath.
      *
      * @param className The fully qualified factory class name.
      * @throws ClassNotFoundException if the specified class was not found.
@@ -315,7 +344,7 @@ public final class Logging {
             throws ClassNotFoundException, IllegalArgumentException {
         final LoggerFactory<?> factory;
         if (className == null) {
-            factory = null;
+            factory = DefaultLoggerFactory.getInstance();
         } else {
             final Class<?> factoryClass;
             try {
@@ -371,7 +400,7 @@ public final class Logging {
      * {@code ConsoleHandler} are found, then a new one is created.
      *
      * <p><b>Note:</b> this method may have no effect if the loggings are redirected to an other
-     * logging framework, for example if {@link #redirectToCommonsLogging} has been invoked.
+     * logging framework.
      */
     public void forceMonolineConsoleOutput() {
         forceMonolineConsoleOutput(null);
@@ -406,6 +435,22 @@ public final class Logging {
                     logger.setLevel(level);
                 }
             }
+        }
+    }
+
+    /**
+     * Checks the {@link LoggerFactory#lookupConfiguration()} information, or reports back on {@code
+     * java.util.logging} configuration if no factory is used.
+     *
+     * <p>The details returned are suitable for troubleshooting.
+     *
+     * @return logging configuration details.
+     */
+    public String lookupConfiguration() {
+        if (factory != null) {
+            return factory.lookupConfiguration();
+        } else {
+            return DefaultLoggerFactory.getInstance().lookupConfiguration();
         }
     }
 
@@ -501,8 +546,8 @@ public final class Logging {
         }
         if (logger == null && classe != null) {
             final int separator = classe.lastIndexOf('.');
-            final String paquet = (separator >= 1) ? classe.substring(0, separator - 1) : "";
-            logger = getLogger(paquet);
+            final String packageName = (separator >= 1) ? classe.substring(0, separator - 1) : "";
+            logger = getLogger(packageName);
         }
         if (logger != null && !logger.isLoggable(level)) {
             return false;
@@ -511,7 +556,7 @@ public final class Logging {
          * Loggeable, so complete the null argument from the stack trace if we can.
          */
         if (logger == null || classe == null || method == null) {
-            String paquet = (logger != null) ? logger.getName() : null;
+            String packageName = (logger != null) ? logger.getName() : null;
             final StackTraceElement[] elements = error.getStackTrace();
             for (final StackTraceElement element : elements) {
                 /*
@@ -524,11 +569,11 @@ public final class Logging {
                     if (!classname.equals(classe)) {
                         continue;
                     }
-                } else if (paquet != null) {
-                    if (!classname.startsWith(paquet)) {
+                } else if (packageName != null) {
+                    if (!classname.startsWith(packageName)) {
                         continue;
                     }
-                    final int length = paquet.length();
+                    final int length = packageName.length();
                     if (classname.length() > length) {
                         // We expect '.' but we accept also '$' or end of string.
                         final char separator = classname.charAt(length);
@@ -548,10 +593,10 @@ public final class Logging {
                 /*
                  * Now computes every values that are null, and stop the loop.
                  */
-                if (paquet == null) {
+                if (packageName == null) {
                     final int separator = classname.lastIndexOf('.');
-                    paquet = (separator >= 1) ? classname.substring(0, separator - 1) : "";
-                    logger = getLogger(paquet);
+                    packageName = (separator >= 1) ? classname.substring(0, separator - 1) : "";
+                    logger = getLogger(packageName);
                     if (!logger.isLoggable(level)) {
                         return false;
                     }
@@ -567,11 +612,9 @@ public final class Logging {
             /*
              * The logger may stay null if we have been unable to find a suitable
              * stack trace. Fallback on the global logger.
-             *
-             * TODO: Use GLOBAL_LOGGER_NAME constant when we will be allowed to target Java 6.
              */
             if (logger == null) {
-                logger = getLogger("global");
+                logger = getLogger(Logger.GLOBAL_LOGGER_NAME);
                 if (!logger.isLoggable(level)) {
                     return false;
                 }
@@ -639,5 +682,21 @@ public final class Logging {
     public static boolean recoverableException(
             final Class<?> classe, final String method, final Throwable error) {
         return recoverableException(null, classe, method, error);
+    }
+
+    @Override
+    public String toString() {
+        final StringBuilder sb = new StringBuilder("Logging: ");
+        if (this == ALL) {
+            sb.append("ALL");
+        } else {
+            sb.append('\'').append(name).append('\'');
+        }
+        if (this.factory != null) {
+            sb.append('(');
+            sb.append(factory);
+            sb.append(')');
+        }
+        return sb.toString();
     }
 }

@@ -25,6 +25,7 @@ import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.net.URL;
+import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
@@ -479,7 +480,7 @@ public class SLDStyleTest {
         String xml = aTransformer.transform(sld);
 
         // back to SLD
-        InputStream is = new ByteArrayInputStream(xml.getBytes("UTF-8"));
+        InputStream is = new ByteArrayInputStream(xml.getBytes(StandardCharsets.UTF_8));
 
         SLDParser stylereader = new SLDParser(sf, is);
 
@@ -934,17 +935,15 @@ public class SLDStyleTest {
         ColorMap cMap = rs.getColorMap();
         Assert.assertEquals(20, cMap.getColorMapEntries().length);
         ColorMapEntry[] centeries = cMap.getColorMapEntries();
-        String[] colors =
-                new String[] {
-                    "#00ff00", "#00fa00", "#14f500", "#28f502", "#3cf505", "#50f50a", "#64f014",
-                    "#7deb32", "#78c818", "#38840c", "#2c4b04", "#ffff00", "#dcdc00", "#b47800",
-                    "#c85000", "#be4100", "#963000", "#3c0200", "#ffffff", "#ffffff"
-                };
-        int[] values =
-                new int[] {
-                    -500, -417, -333, -250, -167, -83, -1, 0, 30, 105, 300, 400, 700, 1200, 1400,
-                    1600, 2000, 3000, 5000, 13000
-                };
+        String[] colors = {
+            "#00ff00", "#00fa00", "#14f500", "#28f502", "#3cf505", "#50f50a", "#64f014",
+            "#7deb32", "#78c818", "#38840c", "#2c4b04", "#ffff00", "#dcdc00", "#b47800",
+            "#c85000", "#be4100", "#963000", "#3c0200", "#ffffff", "#ffffff"
+        };
+        int[] values = {
+            -500, -417, -333, -250, -167, -83, -1, 0, 30, 105, 300, 400, 700, 1200, 1400, 1600,
+            2000, 3000, 5000, 13000
+        };
         for (int i = 0; i < centeries.length; i++) {
             ColorMapEntry entry = centeries[i];
             String c = (String) entry.getColor().evaluate(null);

@@ -21,7 +21,6 @@ import org.geotools.jdbc.JDBCTestSetup;
 import org.geotools.jdbc.JDBCThreeValuedLogicTestSetup;
 
 /** @author Stefan Uhrig, SAP SE */
-@SuppressWarnings("PMD.JUnit4TestShouldUseTestAnnotation") // not yet a JUnit4 test
 public class HanaThreeValuedLogicTestSetup extends JDBCThreeValuedLogicTestSetup {
 
     private static final String TABLE = "abc";
@@ -33,7 +32,7 @@ public class HanaThreeValuedLogicTestSetup extends JDBCThreeValuedLogicTestSetup
     @Override
     protected void createAbcTable() throws Exception {
         try (Connection conn = getConnection()) {
-            HanaTestUtil htu = new HanaTestUtil(conn);
+            HanaTestUtil htu = new HanaTestUtil(conn, fixture);
             htu.createTestSchema();
 
             String[][] cols = {{"name", "VARCHAR(10)"}, {"a", "INT"}, {"b", "INT"}, {"c", "INT"}};
@@ -47,7 +46,7 @@ public class HanaThreeValuedLogicTestSetup extends JDBCThreeValuedLogicTestSetup
     @Override
     protected void dropAbcTable() throws Exception {
         try (Connection conn = getConnection()) {
-            HanaTestUtil htu = new HanaTestUtil(conn);
+            HanaTestUtil htu = new HanaTestUtil(conn, fixture);
             htu.dropTestTableCascade(TABLE);
         }
     }

@@ -61,7 +61,6 @@ import org.opengis.referencing.operation.TransformException;
  * @author Daniele Romagnoli, GeoSolutions
  * @author Simone Giannecchini, GeoSolutions
  */
-@SuppressWarnings("rawtypes")
 public class RasterLayerRequest {
     /** Logger. */
     private static final Logger LOGGER =
@@ -102,7 +101,7 @@ public class RasterLayerRequest {
     RasterManager rasterManager;
 
     private Color inputTransparentColor =
-            AbstractGridFormat.INPUT_TRANSPARENT_COLOR.getDefaultValue();;
+            AbstractGridFormat.INPUT_TRANSPARENT_COLOR.getDefaultValue();
 
     private boolean blend = ImageMosaicFormat.FADING.getDefaultValue();
 
@@ -110,7 +109,7 @@ public class RasterLayerRequest {
     private MergeBehavior mergeBehavior = MergeBehavior.getDefault();
 
     private Color outputTransparentColor =
-            ImageMosaicFormat.OUTPUT_TRANSPARENT_COLOR.getDefaultValue();;
+            ImageMosaicFormat.OUTPUT_TRANSPARENT_COLOR.getDefaultValue();
 
     /**
      * Max number of tiles that this plugin will load.
@@ -313,9 +312,8 @@ public class RasterLayerRequest {
             }
             // Enable alternative CRS Output support only when the requested CRS doesn't match
             // the coverage's one. In that case, proceed with the standard approach
-            if (rasterManager.hasAlternativeCRS(requestedEpsgCode)
-                    && !CRS.equalsIgnoreMetadata(
-                            requestedCRS, spatialRequestHelper.getReferenceCRS(false))) {
+            if (!CRS.equalsIgnoreMetadata(requestedCRS, spatialRequestHelper.getReferenceCRS(false))
+                    && rasterManager.hasAlternativeCRS(requestedEpsgCode)) {
                 // Initialize the alternativeCRS Output Coverage properties
                 spatialRequestHelper.setSupportingAlternativeCRSOutput(true);
                 CoverageProperties alternativeProperties = new CoverageProperties();

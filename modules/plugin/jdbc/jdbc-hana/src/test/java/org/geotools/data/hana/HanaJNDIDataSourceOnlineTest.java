@@ -16,6 +16,8 @@
  */
 package org.geotools.data.hana;
 
+import static org.junit.Assert.assertEquals;
+
 import java.util.List;
 import org.geotools.jdbc.JDBCDataStoreFactory;
 import org.geotools.jdbc.JDBCJNDIDataSourceOnlineTest;
@@ -27,7 +29,7 @@ public class HanaJNDIDataSourceOnlineTest extends JDBCJNDIDataSourceOnlineTest {
 
     @Override
     protected JDBCJNDITestSetup createTestSetup() {
-        return new JDBCJNDITestSetup(new HanaTestSetup());
+        return new JDBCJNDITestSetup(new HanaTestSetupPSPooling());
     }
 
     @Override

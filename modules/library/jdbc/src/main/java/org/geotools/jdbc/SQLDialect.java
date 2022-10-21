@@ -167,6 +167,9 @@ public abstract class SQLDialect {
     /** The datastore using the dialect */
     protected JDBCDataStore dataStore;
 
+    /** Used to influence the CRS axis ordering in {@link #createCRS(int, java.sql.Connection) }. */
+    protected boolean forceLongitudeFirst = false;
+
     /**
      * Creates the dialect.
      *
@@ -263,7 +266,7 @@ public abstract class SQLDialect {
      *
      * <p>Implementing this method is optional. It is used to allow for handling user defined types
      * or "DOMAINS". Dialects that implement this method should set the appropriate information on
-     * the <tt>metadata</tt> object to allow the column to be mapped via teh regular type mapping
+     * the <tt>metadata</tt> object to allow the column to be mapped via the regular type mapping
      * heuristics.
      *
      * @param columnMetaData The column metdata.
@@ -612,6 +615,9 @@ public abstract class SQLDialect {
      * Turns the specified srid into a {@link CoordinateReferenceSystem}, or returns <code>null
      * </code> if not possible.
      *
+     * <p>Note this implementation takes account of {@link #forceLongitudeFirst} which should be set
+     * when longitude first (XY) axis ordering is required.
+     *
      * <p>The implementation might just use <code>CRS.decode("EPSG:" + srid)</code>, but most
      * spatial databases will have their own SRS database that can be queried as well.
      *
@@ -624,12 +630,11 @@ public abstract class SQLDialect {
      */
     public CoordinateReferenceSystem createCRS(int srid, Connection cx) throws SQLException {
         try {
-            return CRS.decode("EPSG:" + srid);
+            return CRS.decode("EPSG:" + srid, forceLongitudeFirst);
         } catch (Exception e) {
             if (LOGGER.isLoggable(Level.FINE)) {
                 LOGGER.log(
-                        Level.FINE,
-                        "Could not decode " + srid + " using the built-in EPSG database");
+                        Level.FINE, "Could not decode EPSG:" + srid + " using the EPSG plugins.");
             }
             return null;
         }
@@ -1380,5 +1385,25 @@ public abstract class SQLDialect {
     public Object convertValue(Object value, AttributeDescriptor ad) {
         Class<?> binding = ad.getType().getBinding();
         return Converters.convert(value, binding);
+    }
+
+    /**
+     * Returns true if this database can "group by" on a Geometry column. Defaults to false,
+     * specific implementations with this capability should override
+     */
+    public boolean canGroupOnGeometry() {
+        return false;
+    }
+
+    /**
+     * Returns the java type mapped to the a specified sql type name defined by the dialect.
+     *
+     * <p>If there is no such type mapped to <tt>sqlTypeName</tt>, <code>null</code> is returned.
+     *
+     * @param sqlTypeName The name of the sql type.
+     * @return The mapped java class, or <code>null</code>. if no such mapping exists.
+     */
+    public Class<?> getMapping(String sqlTypeName) {
+        return null;
     }
 }

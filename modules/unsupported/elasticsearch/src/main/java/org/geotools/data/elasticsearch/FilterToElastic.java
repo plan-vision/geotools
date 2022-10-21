@@ -16,7 +16,9 @@
  */
 package org.geotools.data.elasticsearch;
 
-import com.fasterxml.jackson.core.type.TypeReference;
+import static org.geotools.process.elasticsearch.ElasticBucketVisitor.ES_AGGREGATE_BUCKET;
+import static org.geotools.util.factory.Hints.VIRTUAL_TABLE_PARAMETERS;
+
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.ObjectReader;
 import com.google.common.collect.ImmutableList;
@@ -28,9 +30,11 @@ import java.util.Date;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.logging.Logger;
-import org.elasticsearch.common.joda.Joda;
 import org.geotools.data.Query;
+import org.geotools.data.elasticsearch.date.DateFormat;
+import org.geotools.data.elasticsearch.date.ElasticsearchDateConverter;
 import org.geotools.data.geojson.GeoJSONWriter;
 import org.geotools.factory.CommonFactoryFinder;
 import org.geotools.filter.Capabilities;
@@ -38,13 +42,13 @@ import org.geotools.util.ConverterFactory;
 import org.geotools.util.Converters;
 import org.geotools.util.factory.Hints;
 import org.geotools.util.logging.Logging;
-import org.joda.time.format.DateTimeFormatter;
 import org.locationtech.jts.geom.CoordinateSequence;
 import org.locationtech.jts.geom.Geometry;
 import org.locationtech.jts.geom.GeometryFactory;
 import org.locationtech.jts.geom.LinearRing;
 import org.opengis.feature.simple.SimpleFeatureType;
 import org.opengis.feature.type.AttributeDescriptor;
+import org.opengis.feature.type.GeometryDescriptor;
 import org.opengis.filter.And;
 import org.opengis.filter.BinaryComparisonOperator;
 import org.opengis.filter.BinaryLogicOperator;
@@ -126,8 +130,8 @@ class FilterToElastic implements FilterVisitor, ExpressionVisitor {
     private static final ObjectReader mapReader =
             mapper.readerWithView(Map.class).forType(HashMap.class);
 
-    private static final DateTimeFormatter DEFAULT_DATE_FORMATTER =
-            Joda.forPattern("date_optional_time").printer();
+    private static final ElasticsearchDateConverter DEFAULT_DATE_FORMATTER =
+            ElasticsearchDateConverter.of(DateFormat.date_optional_time);
 
     /** The filter types that this class can encode */
     private Capabilities capabilities = null;
@@ -165,7 +169,7 @@ class FilterToElastic implements FilterVisitor, ExpressionVisitor {
 
     private Object end;
 
-    private DateTimeFormatter dateFormatter;
+    private ElasticsearchDateConverter dateFormatter;
 
     public FilterToElastic() {
         queryBuilder = ElasticConstants.MATCH_ALL;
@@ -1095,7 +1099,7 @@ class FilterToElastic implements FilterVisitor, ExpressionVisitor {
         field = literal;
 
         if (Date.class.isAssignableFrom(literal.getClass())) {
-            field = dateFormatter.print(((Date) literal).getTime());
+            field = dateFormatter.format((Date) literal);
         }
     }
 
@@ -1247,7 +1251,7 @@ class FilterToElastic implements FilterVisitor, ExpressionVisitor {
             if (validFormats != null) {
                 for (String format : validFormats) {
                     try {
-                        dateFormatter = Joda.forPattern(format).printer();
+                        dateFormatter = ElasticsearchDateConverter.forFormat(format);
                         break;
                     } catch (Exception e) {
                         LOGGER.fine(
@@ -1273,11 +1277,11 @@ class FilterToElastic implements FilterVisitor, ExpressionVisitor {
     }
 
     void addViewParams(Query query) {
-        if (query.getHints() != null
-                && query.getHints().get(Hints.VIRTUAL_TABLE_PARAMETERS) != null) {
+        Hints hints = query.getHints();
+        // aggregation handling
+        if (hints != null && hints.get(ES_AGGREGATE_BUCKET) != null) {
             @SuppressWarnings("unchecked")
-            Map<String, String> parameters =
-                    (Map<String, String>) query.getHints().get(Hints.VIRTUAL_TABLE_PARAMETERS);
+            Map<String, String> parameters = (Map) hints.get(ES_AGGREGATE_BUCKET);
 
             boolean nativeOnly = false;
             for (final Map.Entry<String, String> entry : parameters.entrySet()) {
@@ -1293,36 +1297,52 @@ class FilterToElastic implements FilterVisitor, ExpressionVisitor {
 
             for (final Map.Entry<String, String> entry : parameters.entrySet()) {
                 if (entry.getKey().equalsIgnoreCase("q")) {
-                    final String value = entry.getValue();
-                    try {
-                        nativeQueryBuilder = mapReader.readValue(value);
-                    } catch (Exception e) {
-                        // retry with decoded value
-                        try {
-                            nativeQueryBuilder =
-                                    mapReader.readValue(ElasticParserUtil.urlDecode(value));
-                        } catch (Exception e2) {
-                            throw new FilterToElasticException("Unable to parse native query", e);
-                        }
-                    }
+                    setupNativeQuery(entry.getValue());
                 }
                 if (entry.getKey().equalsIgnoreCase("a")) {
-                    final ObjectMapper mapper = new ObjectMapper();
-                    final TypeReference<Map<String, Map<String, Map<String, Object>>>> type =
-                            new TypeReference<Map<String, Map<String, Map<String, Object>>>>() {};
-                    final String value = entry.getValue();
-                    try {
-                        this.aggregations = mapper.readValue(value, type);
-                    } catch (Exception e) {
-                        try {
-                            this.aggregations =
-                                    mapper.readValue(ElasticParserUtil.urlDecode(value), type);
-                        } catch (Exception e2) {
-                            throw new FilterToElasticException("Unable to parse aggregation", e);
-                        }
-                    }
+                    this.aggregations = GeohashUtil.parseAggregation(entry.getValue());
+
+                    // map default geometry to actual underlying field name, if it was left empty
+                    // (e.g, automatic grid definition in GeoHashProcess, it does not have
+                    // access to the geometry name in general)
+                    Optional.ofNullable(aggregations)
+                            .map(a -> a.get("agg"))
+                            .map(a -> a.get("geohash_grid"))
+                            .ifPresent(this::setGeometryField);
                 }
             }
+        }
+        // allow native query to be provided via view param
+        if (hints != null && hints.get(VIRTUAL_TABLE_PARAMETERS) != null) {
+            @SuppressWarnings("unchecked")
+            Map<String, String> parameters = (Map) hints.get(VIRTUAL_TABLE_PARAMETERS);
+            for (final Map.Entry<String, String> entry : parameters.entrySet()) {
+                if (entry.getKey().equalsIgnoreCase("q")) {
+                    setupNativeQuery(entry.getValue());
+                }
+            }
+        }
+    }
+
+    private void setupNativeQuery(String nativeQuery) {
+        try {
+            nativeQueryBuilder = mapReader.readValue(nativeQuery);
+        } catch (Exception e) {
+            // retry with decoded nativeQuery
+            try {
+                nativeQueryBuilder = mapReader.readValue(ElasticParserUtil.urlDecode(nativeQuery));
+            } catch (Exception e2) {
+                throw new FilterToElasticException("Unable to parse native query", e);
+            }
+        }
+    }
+
+    private void setGeometryField(Map<String, Object> m) {
+        if ("".equals(m.get("field"))) {
+            GeometryDescriptor gd = featureType.getGeometryDescriptor();
+            String name = (String) gd.getUserData().get(ElasticConstants.FULL_NAME);
+            if (name == null) name = gd.getLocalName();
+            m.put("field", name);
         }
     }
 

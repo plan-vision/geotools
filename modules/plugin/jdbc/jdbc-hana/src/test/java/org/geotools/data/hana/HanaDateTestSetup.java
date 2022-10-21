@@ -21,7 +21,6 @@ import org.geotools.jdbc.JDBCDateTestSetup;
 import org.geotools.jdbc.JDBCTestSetup;
 
 /** @author Stefan Uhrig, SAP SE */
-@SuppressWarnings("PMD.JUnit4TestShouldUseTestAnnotation") // not yet a JUnit4 test
 public class HanaDateTestSetup extends JDBCDateTestSetup {
 
     private static final String TABLE = "dates";
@@ -33,7 +32,7 @@ public class HanaDateTestSetup extends JDBCDateTestSetup {
     @Override
     protected void createDateTable() throws Exception {
         try (Connection conn = getConnection()) {
-            HanaTestUtil htu = new HanaTestUtil(conn);
+            HanaTestUtil htu = new HanaTestUtil(conn, fixture);
             htu.createTestSchema();
 
             String[][] cols = {{"d", "DATE"}, {"dt", "TIMESTAMP"}, {"t", "TIME"}};
@@ -48,7 +47,7 @@ public class HanaDateTestSetup extends JDBCDateTestSetup {
     @Override
     protected void dropDateTable() throws Exception {
         try (Connection conn = getConnection()) {
-            HanaTestUtil htu = new HanaTestUtil(conn);
+            HanaTestUtil htu = new HanaTestUtil(conn, fixture);
             htu.dropTestTableCascade(TABLE);
         }
     }

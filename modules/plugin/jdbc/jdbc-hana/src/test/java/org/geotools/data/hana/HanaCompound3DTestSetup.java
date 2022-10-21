@@ -23,7 +23,6 @@ import org.geotools.jdbc.JDBCCompound3DTestSetup;
 import org.geotools.jdbc.JDBCTestSetup;
 
 /** @author Stefan Uhrig, SAP SE */
-@SuppressWarnings("PMD.JUnit4TestShouldUseTestAnnotation") // not yet a JUnit4 test
 public class HanaCompound3DTestSetup extends JDBCCompound3DTestSetup {
 
     private static final String TABLE_POINT = "pointCompound3d";
@@ -39,7 +38,7 @@ public class HanaCompound3DTestSetup extends JDBCCompound3DTestSetup {
     @Override
     protected void createLineCompound3DTable() throws Exception {
         try (Connection conn = getConnection()) {
-            HanaTestUtil htu = new HanaTestUtil(conn);
+            HanaTestUtil htu = new HanaTestUtil(conn, fixture);
             createSrs(htu);
             htu.createTestSchema();
 
@@ -69,7 +68,7 @@ public class HanaCompound3DTestSetup extends JDBCCompound3DTestSetup {
     @Override
     protected void createPointCompound3DTable() throws Exception {
         try (Connection conn = getConnection()) {
-            HanaTestUtil htu = new HanaTestUtil(conn);
+            HanaTestUtil htu = new HanaTestUtil(conn, fixture);
             createSrs(htu);
             htu.createTestSchema();
 
@@ -99,7 +98,7 @@ public class HanaCompound3DTestSetup extends JDBCCompound3DTestSetup {
     @Override
     protected void dropLineCompound3DTable() throws Exception {
         try (Connection conn = getConnection()) {
-            HanaTestUtil htu = new HanaTestUtil(conn);
+            HanaTestUtil htu = new HanaTestUtil(conn, fixture);
             htu.dropTestTableCascade(TABLE_LINE);
         }
     }
@@ -107,7 +106,7 @@ public class HanaCompound3DTestSetup extends JDBCCompound3DTestSetup {
     @Override
     protected void dropPolyCompound3DTable() throws Exception {
         try (Connection conn = getConnection()) {
-            HanaTestUtil htu = new HanaTestUtil(conn);
+            HanaTestUtil htu = new HanaTestUtil(conn, fixture);
             htu.dropTestTableCascade(TABLE_POLY);
         }
     }
@@ -115,7 +114,7 @@ public class HanaCompound3DTestSetup extends JDBCCompound3DTestSetup {
     @Override
     protected void dropPointCompound3DTable() throws Exception {
         try (Connection conn = getConnection()) {
-            HanaTestUtil htu = new HanaTestUtil(conn);
+            HanaTestUtil htu = new HanaTestUtil(conn, fixture);
             htu.dropTestTableCascade(TABLE_POINT);
         }
     }

@@ -5,13 +5,14 @@ With a library as old as GeoTools you will occasionally run into a project from 
 needs to be upgraded. This page collects the upgrade notes for each release change; highlighting any
 fundamental changes with code examples showing how to upgrade your code.
 
-But first to upgrade - change your dependency geotools.version to |release| (or an appropriate stable version):
+The first step to upgrade: change the ``geotools.version`` of your dependencies in your ``pom.xml`` to |release| (or an appropriate stable version):
 
-.. code-block:: xml
+.. use a parsed-literal here instead of a code-block because substitution of the RELEASE token does not work in a code-block
+.. parsed-literal::
 
     <properties>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
-        <geotools.version>|release|</geotools.version>
+        <geotools.version>\ |release|\ </geotools.version>
     </properties>
     ....
     <dependencies>
@@ -28,8 +29,161 @@ But first to upgrade - change your dependency geotools.version to |release| (or 
         ....
     </dependencies>
 
+GeoTools 27.x
+-------------
+
+Log4JLoggingFactory migrated to Reload4J
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+We have changed to testing ``Log4JLoggingFactory`` against `reload4j project <https://reload4j.qos.ch/>`__.
+
+The Log4J 1.2 API has been `retired from Apache<https://logging.apache.org/log4j/1.2/>`__`, and the API is now maintained by the Reload4J project:
+
+.. code-block:: xml
+
+   <dependency>
+     <groupId>ch.qos.reload4j</groupId>
+     <artifactId>reload4j</artifactId>
+     <version>1.2.19</version>
+   </dependency>
+
+We encourage applications to use Reload4J, or migrated to a supported logging library.
+
+Logging and GeoTools.init()
+^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+Previously ``GeoTools.init()`` would prefer which prefer ``CommonsLoggerFactory`` if the commons-logging API was available on the CLASSPATH.
+
+The ``GeoTools.init()`` changed to determine appropriate logger using the following precedence:
+
+* ``org.geotools.util.logging.LogbackLoggerFactory`` - SLF4J API
+* ``org.geotools.util.logging.Log4j2LoggerFactory`` - Log4J 2 API
+* ``org.geotools.util.logging.Log4j1LoggerFactory`` - Log4J 1.2 API (maintained by Reload4J project)
+* ``org.geotools.util.logging.CommonsLoggerFactory`` - Apache's Common Logging framework (JCL API)
+* No factory selected, makes direct use of Java Util Logging API (configured with )
+
+The method confirms the required API is available on the CLASSPATH before selecting a ``LoggerFactory``. If the required API is not-available the next ``LoggerFactory`` is tried.
+
+To use ``GeoTools.init()``:
+
+.. code-block:: java
+   
+   package net.fun.example;
+   
+   import java.util.logging.Logger;
+   
+   import org.geotools.util.factory.GeoTools;
+   import org.geotools.util.logging.Logging;
+   
+   class Example {
+      
+      public static void main(String args[]){
+         GeoTools.init();
+         Logger LOGGER = Logging.getLogger("org.geotools.tutorial");
+         LOGGER.fine("Application started - first post!")
+      }
+   }
+
+In a production environment several logging libraries from different components may be available. To select a specific LoggingFactory use ``GeoTools.setLoggingFactory(LoggingFactory)``:
+
+.. code-block:: java
+   
+   package net.fun.example;
+   
+   import java.util.logging.Logger;
+   
+   import org.geotools.util.factory.GeoTools;
+   import org.geotools.util.logging.Logging;
+   
+   class Example {
+      
+      public static Logger LOG = defaultLogger();
+      
+       public static void main(String args[]){
+            LOGGER.fine("Application started - first post!")
+       }
+      
+      private static final Logger defaultLogger(){
+         GeoTools.setLoggerFactory(Log4JLoggerFactory.getInstance());
+         return Logging.getLogger(Example.class);
+      }
+   }
+
+For more information see :doc:`/library/metadata/logging/factory`.
+
+GeoTools 26.x
+-------------
+
+Shapefile
+^^^^^^^^^
+
+``ShapefileDataStore`` will autodetect DBF charset from CPG sidecar file, the feature now enabled by default. When this feature is enabled, the following rules apply:
+
+* if no explicit charset parameter passed to ``ShapefileDataStoreFactory``, it will instruct created ``ShapefileDataStore``
+  to try and figure out DBF file charset from CPG file. In this case, CPG files must contain correct charset name, otherwise, 
+  these files should be removed, or updated properly. 
+* if the store fails to read CPG, it uses the default charset specified by ``ShapefileDataStoreFactory.DBFCHARSET`` constant, 
+  which is usual behavior.
+
+In case of trouble there is an ability to bring old behavior back by setting ``org.geotools.shapefile.enableCPG`` system property
+to "false". This turns autodetection off. The name of the property stored in ``ShapefileDataStoreFactory.ENABLE_CPG_SWITCH`` constant.
+
+Unit of Measurement Formatting
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+As more third-party libraries adopt the Java module system, stricter rules regarding access to
+non-public parts of other modules apply.
+
+One such case was the way GeoTools' unit formatters were previously initialized, which caused
+GeoTools to fail immediately when run from the module path.
+
+Fixing this required changes to multiple classes:
+
+* ``GeoToolsUnitFormat`` which was previously used to access innards of a third-party library and
+  provide access to GeoTools-specific unit formatting instance has been split up and moved:
+  * Building and initializing individual unit formatting instances can now be done using the
+  ``org.geotools.measure.BaseUnitFormatter`` constructor (instead of extending
+  ``org.geotools.util.GeoToolsUnitFormat`` and its inner class ``BaseGT2Format``).
+  * The GeoTools-specific formatting instance can now be accessed with
+  ``org.geotools.measure.UnitFormat.getInstance()`` (instead of
+  ``org.geotools.util.GeoToolsUnitFormat.getInstance()``).
+* ``org.geotools.referencing.wkt.DefaultUnitParser`` has been moved and renamed to
+  ``org.geotools.measure.WktUnitFormat``.
+
+Improvements to Regex Parsing in `IsLike` and similar filters
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+Processing of regular expressions in the ``IsLike`` & ``StrMatches`` functions, and in the ``isPropertyLike`` 
+filter to make use of the faster and more robust `Google regular expression's library 
+<https://github.com/google/re2j>`_. As part of this work we have improved the handling of some "permissible" 
+but inadvisable patterns, such as those with multi character escapes or wild cards. If you had patterns that 
+relied on long escape or wild card patterns you may now get an ``IllegalArgumentException`` for a pattern that 
+happened to work in the past.
+
 GeoTools 25.x
 -------------
+
+GeoTools
+^^^^^^^^
+
+In GeoTools 25.7 ``GeoTools.getInitialContext().look(name)`` and related methods have been deprecated, with ``GeoTools.jndiLookup(name)``. We have also taken an opportunity to remove ``GeoTools.fixName( context, name )`` 
+
+The use of ``GeoTools.jndiLookup(name)`` is subject to validation with the default ``GeoTools.DEFAULT_JNDI_VALIDATOR`` validator used limit name lookup.
+
+BEFORE
+
+.. code-block:: java
+
+   context = GeoTools.getInitialContext();
+   String fixedName = GeoTools.fixName( context, name );
+   return (DataSource) context.lookup(fixedName);
+
+AFTER
+
+.. code-block:: java
+
+   return (DataSource) GeoTools.jndiLookup(name);
+
 
 More variable arguments support in core classes
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
@@ -734,7 +888,7 @@ GeoTools 10.0
 
 .. sidebar:: Wiki
 
-   * `GeoTools 10.0 <https://github.com/geotools/geotools/wiki/10.x>`_
+   * :wiki:`10.x`
 
    For background details on any API changes review the change proposals above.
 
@@ -754,7 +908,7 @@ GeoTools 9.0
 
 .. sidebar:: Wiki
 
-   * `GeoTools 9.0 <https://github.com/geotools/geotools/wiki/9.x>`_
+   * :wiki:`9.x`
 
    For background details on any API changes review the change proposals above.
 
@@ -931,7 +1085,7 @@ GeoTools 8.0
 
 .. sidebar:: Wiki
 
-   * `GeoTools 8.0 <https://github.com/geotools/geotools/wiki/8.x>`_
+   * :wiki:`8.x`
 
    You are encouraged to review the change proposals for GeoTools 8.0 for background information
    on the following changes.
@@ -1071,7 +1225,7 @@ GeoTools 2.7
 
 .. sidebar:: Wiki
 
-   * `GeoTools 2.7.0 <https://github.com/geotools/geotools/wiki/2.7.x>`_
+   * :wiki:`2.7.x`
 
    You are encouraged to review the change proposals for GeoTools 2.7.0 for background information
    on the following changes.
@@ -1269,7 +1423,7 @@ GeoTools 2.6
 
 .. sidebar:: Wiki
 
-   * `GeoTools 2.6.0 <https://github.com/geotools/geotools/wiki/2.6.x>`_
+   * :wiki:`2.6.x`
 
    You are encouraged to review the change proposals for GeoTools 2.6.0 for background information
    on the following changes.
@@ -1485,7 +1639,7 @@ GeoTools 2.5
 
 .. sidebar:: Wiki
 
-   * `GeoTools 2.5.0 <https://github.com/geotools/geotools/wiki/2.5.x>`_
+   * :wiki:`2.5.x`
 
    You are encouraged to review the change proposals for GeoTools 2.5.0 for background information
    on the following changes.
@@ -1808,7 +1962,7 @@ GeoTools 2.4
 
 .. sidebar:: Wiki
 
-   * `GeoTools 2.4.0 <https://github.com/geotools/geotools/wiki/2.4.x>`_
+   * :wiki:`2.4.x`
 
    You are encouraged to review the change proposals for GeoTools 2.4.0 for background information
    on the following changes.

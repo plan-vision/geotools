@@ -200,6 +200,9 @@ org.geotools.filter.function.color.GrayscaleFunction
 org.geotools.filter.function.color.ConstrastFunction
 org.geotools.filter.function.BoundedByFunction
 org.geotools.filter.function.DateDifferenceFunction
+org.geotools.filter.function.JsonArrayContainsFunction
 org.geotools.filter.function.JsonPointerFunction
 org.geotools.filter.function.AndFunction
 org.geotools.filter.function.OrFunction
+org.geotools.filter.function.NowFunction
+org.geotools.filter.function.BandsFunction

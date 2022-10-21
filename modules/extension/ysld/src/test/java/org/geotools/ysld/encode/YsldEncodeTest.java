@@ -51,6 +51,7 @@ import org.geotools.styling.Mark;
 import org.geotools.styling.NamedLayer;
 import org.geotools.styling.PointSymbolizer;
 import org.geotools.styling.RasterSymbolizer;
+import org.geotools.styling.RemoteOWS;
 import org.geotools.styling.Rule;
 import org.geotools.styling.Stroke;
 import org.geotools.styling.Style;
@@ -85,6 +86,52 @@ public class YsldEncodeTest {
     private static final double EPSILON = 0.0000000001;
 
     Logger LOG = Logging.getLogger("org.geotools.ysld.Ysld");
+
+    @Test
+    public void testRoot() throws Exception {
+        StyleFactory styleFactory = CommonFactoryFinder.getStyleFactory();
+
+        StyledLayerDescriptor sld = styleFactory.createStyledLayerDescriptor();
+        sld.setName("MySLD");
+        sld.setTitle("My SLD");
+        sld.setAbstract("Remote WMS user layer style definition");
+
+        UserLayer layer = styleFactory.createUserLayer();
+        RemoteOWS remote =
+                styleFactory.createRemoteOWS("WMS", "http://localhost:8080/geoserver/wms");
+        layer.setName("MyLayer");
+        layer.setRemoteOWS(remote);
+
+        sld.layers().add(layer);
+
+        Style style = styleFactory.createStyle();
+        style.setName("Ignored");
+        layer.userStyles().add(style);
+
+        Style defaultStyle = styleFactory.createStyle();
+        defaultStyle.setDefault(true);
+        defaultStyle.setName("MyStyle");
+        layer.userStyles().add(defaultStyle);
+
+        StringWriter out = new StringWriter();
+        Ysld.encode(sld, out);
+
+        YamlMap obj = new YamlMap(YamlUtil.getSafeYaml().load(out.toString()));
+
+        assertThat(obj, yHasEntry("sld-name", lexEqualTo("MySLD")));
+        assertThat(obj, yHasEntry("sld-title", lexEqualTo("My SLD")));
+        assertThat(
+                obj,
+                yHasEntry("sld-abstract", lexEqualTo("Remote WMS user layer style definition")));
+
+        assertThat(obj, yHasEntry("user-name", lexEqualTo("MyLayer")));
+        assertThat(
+                obj, yHasEntry("user-remote", lexEqualTo("http://localhost:8080/geoserver/wms")));
+        assertThat(obj, yHasEntry("user-service", lexEqualTo("WMS")));
+
+        assertThat(obj, yHasEntry("user-name", lexEqualTo("MyLayer")));
+        assertThat(obj, yHasEntry("name", lexEqualTo("MyStyle")));
+    }
 
     @Test
     public void testFunction() throws Exception {
@@ -1418,6 +1465,36 @@ public class YsldEncodeTest {
                 yHasEntry("contrast-enhancement", yHasEntry("mode", equalTo("histogram"))));
     }
 
+    @Test
+    public void testBandSelectionExpression() throws Exception {
+        StyleFactory styleFactory = CommonFactoryFinder.getStyleFactory();
+        FilterFactory2 filterFactory = CommonFactoryFinder.getFilterFactory2();
+        Expression nameExpression =
+                filterFactory.function(
+                        "env", filterFactory.literal("B1"), filterFactory.literal("1"));
+        RasterSymbolizer r = styleFactory.createRasterSymbolizer();
+        ChannelSelection sel =
+                styleFactory.channelSelection(
+                        styleFactory.createSelectedChannelType(nameExpression, (Expression) null));
+        r.setChannelSelection(sel);
+
+        StringWriter out = new StringWriter();
+        Ysld.encode(sld(r), out);
+
+        YamlMap obj = new YamlMap(YamlUtil.getSafeYaml().load(out.toString()));
+        YamlMap channelMap =
+                obj.seq("feature-styles")
+                        .map(0)
+                        .seq("rules")
+                        .map(0)
+                        .seq("symbolizers")
+                        .map(0)
+                        .map("raster")
+                        .map("channels")
+                        .map("gray");
+        assertThat(channelMap, yHasEntry("name", equalTo("${env('B1','1')}")));
+    }
+
     StyledLayerDescriptor sld(Symbolizer sym) {
         return sld(fts(sym));
     }
@@ -1813,5 +1890,20 @@ public class YsldEncodeTest {
                 new RasterSymbolizerEncoder(symbolizer).new ColorMapEntryIterator(colorMap);
         Tuple map = iterator.next();
         assertEquals("('#E20374',1.0,1,Lorem Ipsum (magenta = covered))", map.toString());
+    }
+
+    @Test
+    public void testRuleVendorOption() throws Exception {
+        PointSymbolizer p = CommonFactoryFinder.getStyleFactory().createPointSymbolizer();
+        FeatureTypeStyle fts = fts(p);
+        fts.rules().get(0).getOptions().put("foo", "bar");
+
+        StringWriter out = new StringWriter();
+        Ysld.encode(sld(fts), out);
+
+        YamlMap obj = new YamlMap(YamlUtil.getSafeYaml().load(out.toString()));
+        YamlMap result = obj.seq("feature-styles").map(0).seq("rules").map(0);
+
+        assertEquals("bar", result.str("x-foo"));
     }
 }

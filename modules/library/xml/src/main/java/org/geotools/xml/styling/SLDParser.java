@@ -818,7 +818,7 @@ public class SLDParser {
                 if ("1".equals(firstChildValue)) {
                     style.setDefault(true);
                 } else {
-                    style.setDefault(Boolean.valueOf(firstChildValue).booleanValue());
+                    style.setDefault(Boolean.parseBoolean(firstChildValue));
                 }
             } else if (childName.equalsIgnoreCase("FeatureTypeStyle")) {
                 style.featureTypeStyles().add(parseFeatureTypeStyle(child));
@@ -973,6 +973,8 @@ public class SLDParser {
                 symbolizers.add(parseTextSymbolizer(child));
             } else if (childName.equalsIgnoreCase("RasterSymbolizer")) {
                 symbolizers.add(parseRasterSymbolizer(child));
+            } else if (childName.equalsIgnoreCase(VendorOptionString)) {
+                parseVendorOption(rule.getOptions(), child);
             }
         }
 
@@ -1311,6 +1313,8 @@ public class SLDParser {
                 symbol.setShadedRelief(parseShadedRelief(child));
             } else if (childName.equalsIgnoreCase(imageOutlineString)) {
                 symbol.setImageOutline(parseLineSymbolizer(child));
+            } else if (childName.equalsIgnoreCase(VendorOptionString)) {
+                parseVendorOption(symbol.getOptions(), child);
             }
         }
 

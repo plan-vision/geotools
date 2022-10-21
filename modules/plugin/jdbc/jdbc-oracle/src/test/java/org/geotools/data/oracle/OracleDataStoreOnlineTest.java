@@ -29,6 +29,7 @@ import org.geotools.jdbc.JDBCDataStoreOnlineTest;
 import org.geotools.jdbc.JDBCTestSetup;
 import org.geotools.referencing.CRS;
 import org.geotools.referencing.crs.DefaultGeographicCRS;
+import org.junit.Test;
 import org.locationtech.jts.geom.Geometry;
 import org.opengis.feature.simple.SimpleFeature;
 import org.opengis.feature.simple.SimpleFeatureType;
@@ -44,6 +45,7 @@ public class OracleDataStoreOnlineTest extends JDBCDataStoreOnlineTest {
         return oracleTestSetup;
     }
 
+    @Test
     public void testCreateSchemaOSGBCrs() throws Exception {
         SimpleFeatureTypeBuilder builder = new SimpleFeatureTypeBuilder();
         builder.setName(tname("ft2"));
@@ -59,6 +61,7 @@ public class OracleDataStoreOnlineTest extends JDBCDataStoreOnlineTest {
         dataStore.createSchema(featureType);
     }
 
+    @Test
     public void testCreateSchemaWktCrs() throws Exception {
         SimpleFeatureTypeBuilder builder = new SimpleFeatureTypeBuilder();
         builder.setName(tname("ft2"));
@@ -85,6 +88,7 @@ public class OracleDataStoreOnlineTest extends JDBCDataStoreOnlineTest {
         dataStore.createSchema(featureType);
     }
 
+    @Test
     public void testCreateSpatialIndexNameTooLong() throws Exception {
         SimpleFeatureTypeBuilder builder = new SimpleFeatureTypeBuilder();
         builder.setName(tname("ft2"));
@@ -99,6 +103,8 @@ public class OracleDataStoreOnlineTest extends JDBCDataStoreOnlineTest {
         dataStore.createSchema(featureType);
     }
 
+    @SuppressWarnings("PMD.UseTryWithResources") // need transaction in catch for rollback
+    @Test
     public void testCreateLongVarChar() throws Exception {
         SimpleFeatureTypeBuilder builder = new SimpleFeatureTypeBuilder();
         builder.setName(tname("longvar"));
@@ -122,7 +128,8 @@ public class OracleDataStoreOnlineTest extends JDBCDataStoreOnlineTest {
         fBuilder.add(vBuffer.toString());
         SimpleFeature f = fBuilder.buildFeature(null);
         // used to fail here
-        @SuppressWarnings("PMD.CloseResource") // need it available for rollback in the catch
+        // need the transaction available for rollback in the catch
+        @SuppressWarnings({"PMD.CloseResource", "PMD.UseTryWithResources"})
         Transaction transaction = new DefaultTransaction("create");
         SimpleFeatureSource featureSource =
                 dataStore.getFeatureSource(featureType.getName().getLocalPart());

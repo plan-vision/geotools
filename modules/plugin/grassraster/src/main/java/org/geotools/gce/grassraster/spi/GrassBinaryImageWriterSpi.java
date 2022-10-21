@@ -34,7 +34,6 @@ import org.geotools.gce.grassraster.GrassBinaryImageWriter;
  * @see GrassBinaryImageReader
  * @see GrassBinaryImageWriterSpi
  */
-@SuppressWarnings("nls")
 public class GrassBinaryImageWriterSpi extends ImageWriterSpi {
     private static final String[] suffixes = {""};
     private static final String[] formatNames = {
@@ -49,7 +48,7 @@ public class GrassBinaryImageWriterSpi extends ImageWriterSpi {
             "eu.hydrologis.jgrass.grassbinary.imageio.io.GrassBinaryImageWriter";
 
     /** the outputTypes handled by the {@link GrassBinaryImageWriter}. */
-    private static final Class<?>[] outputTypes = new Class[] {File.class};
+    private static final Class<?>[] outputTypes = {File.class};
 
     /** the readerSpiName */
     private static final String[] rSN = {

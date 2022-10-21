@@ -16,6 +16,8 @@
  */
 package org.geotools.referencing;
 
+import static org.junit.Assert.assertArrayEquals;
+
 import java.util.Locale;
 import java.util.Set;
 import org.geotools.geometry.DirectPosition2D;
@@ -325,7 +327,7 @@ public abstract class AbstractCRSTest extends OnlineTestCase {
         assertNotNull(crs);
 
         MathTransform mt = CRS.findMathTransform(DefaultGeographicCRS.WGS84, crs);
-        double[] source = new double[] {-20, 35};
+        double[] source = {-20, 35};
         double[] dest = new double[2];
         mt.transform(source, 0, dest, 0, 1);
 
@@ -418,7 +420,7 @@ public abstract class AbstractCRSTest extends OnlineTestCase {
         CoordinateReferenceSystem ng39 = CRS.decode("EPSG:25831", true);
 
         // forward
-        double[] src = new double[] {300000, 4500000};
+        double[] src = {300000, 4500000};
         double[] dst = new double[2];
         MathTransform mt = CRS.findMathTransform(tombak, ng39);
         mt.transform(src, 0, dst, 0, 1);
@@ -459,8 +461,8 @@ public abstract class AbstractCRSTest extends OnlineTestCase {
 
         assertTrue(mt.toWKT().contains("NADCON"));
 
-        double[] src = new double[] {56.575, -169.625};
-        double[] expected = new double[] {56.576034, -169.62744};
+        double[] src = {56.575, -169.625};
+        double[] expected = {56.576034, -169.62744};
         double[] p = new double[2];
         mt.transform(src, 0, p, 0, 1);
         assertEquals(expected[0], p[0], 1e-6);
@@ -816,5 +818,51 @@ public abstract class AbstractCRSTest extends OnlineTestCase {
         // a extreme point in the reprojected space (quadrant point)
         assertEquals(-12367396.22, transformed.getMinimum(1), 1d);
         assertEquals(12367396.22, transformed.getMaximum(1), 1d);
+    }
+
+    @Test
+    public void testKrovak() throws Exception {
+        // lat/lon orientated
+        CoordinateReferenceSystem jtsk = CRS.decode("EPSG:4156", false);
+        CoordinateReferenceSystem krovak = CRS.decode("EPSG:5513", false);
+
+        MathTransform mt = CRS.findMathTransform(jtsk, krovak);
+
+        // values verified with cs2cs
+        double[] dest = new double[2];
+        mt.transform(new double[] {47.7, 12.1}, 0, dest, 0, 1);
+        assertArrayEquals(new double[] {1279735.79, 951371.74}, dest, 1e-2);
+        mt.transform(new double[] {51.1, 12.1}, 0, dest, 0, 1);
+        assertArrayEquals(new double[] {906868.41, 888239.70}, dest, 1e-2);
+        mt.transform(new double[] {47.7, 22.6}, 0, dest, 0, 1);
+        assertArrayEquals(new double[] {1356744.52, 167574.75}, dest, 1e-2);
+        mt.transform(new double[] {51.1, 22.6}, 0, dest, 0, 1);
+        assertArrayEquals(new double[] {978716.79, 156588.71}, dest, 1e-2);
+    }
+
+    @Test
+    public void testKrovakNorth() throws Exception {
+        // lat/lon orientated
+        CoordinateReferenceSystem jtsk = CRS.decode("EPSG:4156", false);
+        CoordinateReferenceSystem krovakNorth = CRS.decode("EPSG:5514", false);
+
+        MathTransform mt = CRS.findMathTransform(jtsk, krovakNorth);
+
+        // values verified with cs2cs
+        double[] dest = new double[2];
+        mt.transform(new double[] {47.7, 12.1}, 0, dest, 0, 1);
+        assertArrayEquals(new double[] {-951371.74, -1279735.79}, dest, 1e-2);
+        mt.transform(new double[] {51.1, 12.1}, 0, dest, 0, 1);
+        assertArrayEquals(new double[] {-888239.70, -906868.41}, dest, 1e-2);
+        mt.transform(new double[] {47.7, 22.6}, 0, dest, 0, 1);
+        assertArrayEquals(new double[] {-167574.75, -1356744.52}, dest, 1e-2);
+        mt.transform(new double[] {51.1, 22.6}, 0, dest, 0, 1);
+        assertArrayEquals(new double[] {-156588.71, -978716.79}, dest, 1e-2);
+    }
+
+    @Test
+    public void testKrovakFerro() throws Exception {
+        // used to fail decoding
+        CRS.decode("EPSG:2065", true);
     }
 }

@@ -21,7 +21,6 @@ import org.geotools.jdbc.JDBCGeometryTestSetup;
 import org.geotools.jdbc.JDBCTestSetup;
 
 /** @author Stefan Uhrig, SAP SE */
-@SuppressWarnings("PMD.JUnit4TestShouldUseTestAnnotation") // not yet a JUnit4 test
 public class HanaGeometryTestSetup extends JDBCGeometryTestSetup {
 
     public HanaGeometryTestSetup(JDBCTestSetup delegate) {
@@ -29,9 +28,18 @@ public class HanaGeometryTestSetup extends JDBCGeometryTestSetup {
     }
 
     @Override
+    public void setUp() throws Exception {
+        try (Connection conn = getConnection()) {
+            HanaTestUtil htu = new HanaTestUtil(conn, fixture);
+            htu.createTestSchema();
+        }
+        super.setUp();
+    }
+
+    @Override
     protected void dropSpatialTable(String tableName) throws Exception {
         try (Connection conn = getConnection()) {
-            HanaTestUtil htu = new HanaTestUtil(conn);
+            HanaTestUtil htu = new HanaTestUtil(conn, fixture);
             htu.dropTestTableCascade(tableName);
         }
     }

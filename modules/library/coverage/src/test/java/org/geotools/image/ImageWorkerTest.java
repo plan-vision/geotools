@@ -2,7 +2,7 @@
  *    GeoTools - The Open Source Java GIS Toolkit
  *    http://geotools.org
  *
- *    (C) 2006-2015, Open Source Geospatial Foundation (OSGeo)
+ *    (C) 2006-2021, Open Source Geospatial Foundation (OSGeo)
  *
  *    This library is free software; you can redistribute it and/or
  *    modify it under the terms of the GNU Lesser General Public
@@ -250,7 +250,7 @@ public final class ImageWorkerTest extends GridProcessingTestBase {
 
     /** Creates a test paletted image with translucency. */
     private static BufferedImage getSyntheticTranslucentIndexed() {
-        final byte bb[] = new byte[256];
+        final byte[] bb = new byte[256];
         for (int i = 0; i < 256; i++) bb[i] = (byte) i;
         final IndexColorModel icm = new IndexColorModel(8, 256, bb, bb, bb, bb);
         final WritableRaster raster =
@@ -265,7 +265,7 @@ public final class ImageWorkerTest extends GridProcessingTestBase {
     /** Creates a test paletted image with nodata and no transparency */
     private static RenderedImage getIndexedRGBNodata() {
         // a palette with just the first 200 entries filled, the others are all zero (but present!)
-        final byte bb[] = new byte[256];
+        final byte[] bb = new byte[256];
         for (int i = 0; i < 256; i++) {
             if (i < 200) {
                 bb[i] = (byte) i;
@@ -296,7 +296,7 @@ public final class ImageWorkerTest extends GridProcessingTestBase {
 
     /** Creates a test paletted image with a given number of entries in the map */
     private static BufferedImage getSyntheticGrayIndexed(int entries) {
-        final byte bb[] = new byte[entries];
+        final byte[] bb = new byte[entries];
         for (int i = 0; i < entries; i++) bb[i] = (byte) i;
         final IndexColorModel icm = new IndexColorModel(8, entries, bb, bb, bb, bb);
         final WritableRaster raster =
@@ -1605,7 +1605,7 @@ public final class ImageWorkerTest extends GridProcessingTestBase {
     @Test
     public void testWarpAffinePreserveBackgorund() throws Exception {
         // pick a RGB image, do warp and then affine
-        double[] background = new double[] {1, 2, 3};
+        double[] background = {1, 2, 3};
         GridCoverage2D warped =
                 project(
                         EXAMPLES.get(0),
@@ -1755,7 +1755,7 @@ public final class ImageWorkerTest extends GridProcessingTestBase {
     public void testBandMergeWithNodata() throws FileNotFoundException, IOException {
         double noDataValue = -10000d;
         Range nodata = RangeFactory.create(noDataValue, noDataValue);
-        double[] background = new double[] {noDataValue};
+        double[] background = {noDataValue};
 
         PlanarImage pi = PlanarImage.wrapRenderedImage(imageWithNodata2);
         pi.setProperty("GC_NODATA", new NoDataContainer(nodata));
@@ -1973,7 +1973,7 @@ public final class ImageWorkerTest extends GridProcessingTestBase {
         final int specialPixelsOriginY = h / 4;
 
         // Setting the top left quarter of the image to all zeros
-        int[] zero = new int[] {0, 0, 0};
+        int[] zero = {0, 0, 0};
         WritableRaster raster = red.getRaster();
         for (int i = 0; i < specialPixelsOriginX; i++) {
             for (int j = 0; j < specialPixelsOriginY; j++) {
@@ -1983,7 +1983,7 @@ public final class ImageWorkerTest extends GridProcessingTestBase {
 
         // setting some special pixels to colors with up to 2 bands equal to zero.
         final int specialPixels = 9;
-        final int specialPixelsValues[][] = new int[specialPixels][];
+        final int[][] specialPixelsValues = new int[specialPixels][];
 
         specialPixelsValues[0] = new int[] {0, 0, 255};
         specialPixelsValues[1] = new int[] {0, 255, 0};
@@ -2168,7 +2168,7 @@ public final class ImageWorkerTest extends GridProcessingTestBase {
                         DataBuffer.TYPE_BYTE);
         final BufferedImage image = new BufferedImage(cm, raster, false, null);
         ImageWorker worker = new ImageWorker(image);
-        double maxs[] = worker.getMaximums();
+        double[] maxs = worker.getMaximums();
         assertEquals(width + height - 2, (int) maxs[0]);
 
         worker = worker.crop(0, 0, width / 2, height / 2);
@@ -2195,8 +2195,8 @@ public final class ImageWorkerTest extends GridProcessingTestBase {
         final int specialPixelsOriginY = h / 2;
 
         // Setting the top left quarter of the image to all zeros
-        int[] zero = new int[] {0, 0, 0};
-        int[] redValues = new int[] {255, 0, 0};
+        int[] zero = {0, 0, 0};
+        int[] redValues = {255, 0, 0};
         WritableRaster raster = red.getRaster();
         WritableRaster alphaRaster = alphaChannel.getRaster();
         for (int i = 0; i < specialPixelsOriginX; i++) {
@@ -2451,5 +2451,14 @@ public final class ImageWorkerTest extends GridProcessingTestBase {
         Histogram histogram = iw.getHistogram(new int[] {1}, minimums, maximums);
         Histogram histogram2 = iw.getHistogram(new int[] {1}, minimums, maximums);
         assertEquals(histogram.getBins(0)[0], histogram2.getBins(0)[0]);
+    }
+
+    @Test(expected = Test.None.class /* No IllegalArgumentException */)
+    public void testReattachScaledAlphaChannel() {
+        BufferedImage bi = new BufferedImage(1, 1, BufferedImage.TYPE_BYTE_GRAY);
+        ImageWorker iw = new ImageWorker(bi);
+        RenderingHints hints = new RenderingHints(null);
+        hints.put(JAI.KEY_IMAGE_LAYOUT, new ImageLayout(0, 0, 1, 1));
+        iw.prepareForScaledAlphaChannel(bi, hints, bi.getColorModel(), bi.getSampleModel());
     }
 }

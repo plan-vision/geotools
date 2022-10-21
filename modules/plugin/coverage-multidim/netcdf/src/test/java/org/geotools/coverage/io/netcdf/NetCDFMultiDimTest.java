@@ -77,7 +77,6 @@ public class NetCDFMultiDimTest {
         DF.setTimeZone(TimeZone.getTimeZone("UTC"));
     }
 
-    @SuppressWarnings("rawtypes")
     @Test
     public void test() throws Exception {
         NetCDFFormat format = new NetCDFFormat();
@@ -209,7 +208,6 @@ public class NetCDFMultiDimTest {
         reader.dispose();
     }
 
-    @SuppressWarnings("rawtypes")
     @Test
     public void test2DTime() throws Exception {
         NetCDFFormat format = new NetCDFFormat();
@@ -719,7 +717,7 @@ public class NetCDFMultiDimTest {
                     new DefaultParameterDescriptor<>("ELEVATION", List.class, null, null)
                             .createValue();
 
-            GeneralParameterValue[] values = new GeneralParameterValue[] {gg, time, elevation};
+            GeneralParameterValue[] values = {gg, time, elevation};
 
             // Read with 1st date / 1st elevation
             time.setValue(

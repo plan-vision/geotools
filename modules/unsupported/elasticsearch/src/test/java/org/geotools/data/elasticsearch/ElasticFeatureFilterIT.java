@@ -19,6 +19,7 @@ package org.geotools.data.elasticsearch;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertNotEquals;
 import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertTrue;
@@ -35,6 +36,7 @@ import org.geotools.data.Query;
 import org.geotools.data.simple.SimpleFeatureCollection;
 import org.geotools.data.simple.SimpleFeatureIterator;
 import org.geotools.data.store.ContentEntry;
+import org.geotools.data.store.ContentFeatureSource;
 import org.geotools.feature.NameImpl;
 import org.geotools.geometry.jts.ReferencedEnvelope;
 import org.junit.Assert;
@@ -193,7 +195,7 @@ public class ElasticFeatureFilterIT extends ElasticTestSupport {
         try (SimpleFeatureIterator iterator = features.features()) {
             while (iterator.hasNext()) {
                 SimpleFeature f = iterator.next();
-                assertFalse(f.getAttribute("vendor_s").equals("D-Link"));
+                assertNotEquals("D-Link", f.getAttribute("vendor_s"));
             }
         }
     }
@@ -282,6 +284,46 @@ public class ElasticFeatureFilterIT extends ElasticTestSupport {
     }
 
     @Test
+    public void testRenamedProperties() throws Exception {
+        init();
+
+        ElasticLayerConfiguration renaming = new ElasticLayerConfiguration(config);
+        renaming.getAttributes().stream()
+                .forEach(
+                        a -> {
+                            if ("standard_ss".equals(a.getName())) a.setCustomName("std");
+                            if ("security_ss".equals(a.getName())) a.setCustomName("sec");
+                            if ("modem_b".equals(a.getName())) a.setCustomName("mob");
+                        });
+        final String RENAMED_TYPE_NAME = "renamed";
+        renaming.setLayerName(RENAMED_TYPE_NAME);
+
+        dataStore.setLayerConfiguration(renaming);
+        dataStore.setSourceFilteringEnabled(true);
+        ContentFeatureSource fs = dataStore.getFeatureSource(RENAMED_TYPE_NAME);
+
+        // setup a query filtering on, and retrieving, renamed attributes
+        FilterFactory ff = dataStore.getFilterFactory();
+        PropertyIsEqualTo filter = ff.equals(ff.property("mob"), ff.literal(true));
+        Query query = new Query();
+        query.setPropertyNames("std", "sec");
+        query.setFilter(filter);
+
+        SimpleFeatureCollection features = fs.getFeatures(query);
+        assertEquals(8, features.size());
+
+        try (SimpleFeatureIterator iterator = features.features()) {
+            assertTrue(iterator.hasNext());
+            SimpleFeature feature = iterator.next();
+            assertEquals(2, feature.getAttributeCount());
+            String std = (String) feature.getAttribute("std");
+            assertTrue(std.contains("IEEE 802.11b"));
+            String sec = (String) feature.getAttribute("sec");
+            assertTrue(sec.contains("WEP"));
+        }
+    }
+
+    @Test
     public void testReadStringArrayWithCsvStrategy() throws Exception {
         init();
         dataStore.setArrayEncoding(ElasticDataStore.ArrayEncoding.CSV);
@@ -330,9 +372,8 @@ public class ElasticFeatureFilterIT extends ElasticTestSupport {
         SimpleFeatureCollection features = featureSource.getFeatures(query);
         assertEquals(11, features.size());
 
-        SimpleFeatureIterator iterator = features.features();
         SimpleFeature f;
-        try {
+        try (SimpleFeatureIterator iterator = features.features()) {
             assertTrue(iterator.hasNext());
             f = iterator.next();
             assertEquals("Asus", f.getAttribute("vendor_s"));
@@ -342,15 +383,12 @@ public class ElasticFeatureFilterIT extends ElasticTestSupport {
             assertTrue(iterator.hasNext());
             f = iterator.next();
             assertEquals("Cisco", f.getAttribute("vendor_s"));
-        } finally {
-            iterator.close();
         }
 
         sort = ff.sort("vendor_s", SortOrder.DESCENDING);
         query.setSortBy(sort);
         features = featureSource.getFeatures(query);
-        iterator = features.features();
-        try {
+        try (SimpleFeatureIterator iterator = features.features()) {
             assertTrue(iterator.hasNext());
             f = iterator.next();
             assertEquals("TP-Link", f.getAttribute("vendor_s"));
@@ -360,8 +398,6 @@ public class ElasticFeatureFilterIT extends ElasticTestSupport {
             assertTrue(iterator.hasNext());
             f = iterator.next();
             assertEquals("Linksys", f.getAttribute("vendor_s"));
-        } finally {
-            iterator.close();
         }
     }
 

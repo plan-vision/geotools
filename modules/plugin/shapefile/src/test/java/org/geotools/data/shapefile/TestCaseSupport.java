@@ -100,6 +100,7 @@ public class TestCaseSupport {
             dieDieDIE(sibling(targetFile, "grx"));
             dieDieDIE(sibling(targetFile, "prj"));
             dieDieDIE(sibling(targetFile, "shp.xml"));
+            dieDieDIE(sibling(targetFile, "cpg"));
 
             f.remove();
         }
@@ -150,7 +151,7 @@ public class TestCaseSupport {
 
     /** Creates a temporary file, to be automatically deleted at the end of the test suite. */
     protected File getTempFile() throws IOException {
-        // force in some valid but weird chars into teh path to be on par with OSX that does it
+        // force in some valid but weird chars into the path to be on par with OSX that does it
         // on its own
         File tmpFile = File.createTempFile("test-+()shp", ".shp");
         tmpFile.deleteOnExit();
@@ -200,6 +201,11 @@ public class TestCaseSupport {
         }
         try {
             assertTrue(TestData.copy(TestCaseSupport.class, sibling(name, "shp.xml")).canRead());
+        } catch (FileNotFoundException e) {
+            // Ignore: this file is optional.
+        }
+        try {
+            assertTrue(TestData.copy(TestCaseSupport.class, sibling(name, "cpg")).canRead());
         } catch (FileNotFoundException e) {
             // Ignore: this file is optional.
         }

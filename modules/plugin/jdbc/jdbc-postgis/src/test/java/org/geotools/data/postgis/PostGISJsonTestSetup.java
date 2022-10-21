@@ -20,9 +20,8 @@ import java.sql.Connection;
 import java.sql.ResultSet;
 import java.sql.Statement;
 import org.geotools.jdbc.JDBCDelegatingTestSetup;
-import org.geotools.util.Version;
+import org.postgresql.util.PSQLException;
 
-@SuppressWarnings("PMD.JUnit4TestShouldUseTestAnnotation") // not yet a JUnit4 test
 public class PostGISJsonTestSetup extends JDBCDelegatingTestSetup {
 
     protected PostGISJsonTestSetup() {
@@ -37,11 +36,21 @@ public class PostGISJsonTestSetup extends JDBCDelegatingTestSetup {
 
         try (Connection cx = getConnection();
                 Statement st = cx.createStatement();
-                ResultSet rs = st.executeQuery("select Version()")) {
+                ResultSet rs = st.executeQuery("SELECT current_setting('server_version_num')")) {
             if (rs.next()) {
-                // JSONB has been introduced with version 9.4
-                supportJsonB = new Version(rs.getString(1)).compareTo(new Version("9.4")) >= 0;
+                try {
+                    // JSONB has been introduced with version 9.4
+                    supportJsonB = Integer.parseInt(rs.getString(1)) >= 90004;
+                } catch (NumberFormatException nfe) {
+                    // unable to determine PostgreSQL version because non-integer returned
+                    supportJsonB = false;
+                }
             }
+        } catch (PSQLException pse) {
+            // server_version_num was added in PostgreSQL 8.2, throws this exception if the
+            // parameter is
+            // not found
+            supportJsonB = false;
         }
         createTestJsonTable();
     }
@@ -96,7 +105,9 @@ public class PostGISJsonTestSetup extends JDBCDelegatingTestSetup {
                         + (supportJsonB ? ", '{\"arrayValues\":[3,5,6]}'" : "")
                         + ");"
                         + "INSERT INTO \"jsontest\" VALUES (6, 'arrayEntry2', '{\"strVal\": \"stringValue\", \"arrayValues\":[3,6,7]}'"
-                        + (supportJsonB ? ", '{\"arrayValues\":[3,6,7]}'" : "")
+                        + (supportJsonB
+                                ? ", '{\"strVal\": \"stringValue\",\"arrayValues\":[3,6,7]}'"
+                                : "")
                         + ");"
                         + "INSERT INTO \"jsontest\" VALUES (7, 'nestedObj', '{\"nestedObj\": {\"nestedProp\":\"stringValue\", \"nestedObj2\": {\"numProp\": 3, \"strProp\": \"stringValue2\"},\"nestedAr\":[3,6,7]}}'"
                         + (supportJsonB
@@ -107,6 +118,9 @@ public class PostGISJsonTestSetup extends JDBCDelegatingTestSetup {
                         + (supportJsonB
                                 ? ", '{\"nestedObj\": {\"nestedProp\":\"stringValue\", \"nestedObj2\": {\"numProp\": 4, \"strProp\": \"stringValue2\"}, \"nestedAr\":[3,5,7]}}'"
                                 : "")
+                        + ");"
+                        + "INSERT INTO \"jsontest\" VALUES (9, 'arrayEntryStr', '{\"arrayStrValues\":[\"EL1\",\"EL2\",\"EL3\"]}'"
+                        + (supportJsonB ? ", '{\"arrayStrValues\":[\"EL1\",\"EL2\",\"EL3\"]}'" : "")
                         + ");";
 
         run(sql);

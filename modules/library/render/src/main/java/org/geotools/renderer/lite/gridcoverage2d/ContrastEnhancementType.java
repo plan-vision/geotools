@@ -100,7 +100,7 @@ public enum ContrastEnhancementType {
 
         @Override
         LookupTable createByteLookupTable(Map<String, Object> params) {
-            final byte lut[] = new byte[256];
+            final byte[] lut = new byte[256];
             final double normalizationFactor = 255.0;
             final double correctionFactor = 255.0 / (Math.E - 1);
             for (int i = 1; i < lut.length; i++) {
@@ -192,7 +192,7 @@ public enum ContrastEnhancementType {
 
         @Override
         LookupTable createByteLookupTable(Map<String, Object> params) {
-            final byte lut[] = new byte[256];
+            final byte[] lut = new byte[256];
             final double normalizationFactor = 255.0;
             final double correctionFactor = 100.0;
             for (int i = 1; i < lut.length; i++) {
@@ -214,38 +214,36 @@ public enum ContrastEnhancementType {
             double minimum = (double) params.get(KEY_MIN);
             double maximum = (double) params.get(KEY_MAX);
 
-            final double normalizationFactor = maximum;
+            final double normFactor = maximum;
             final double correctionFactor = 100.0;
 
+            MathTransformationAdapter mt =
+                    new MathTransformationAdapter() {
+
+                        @Override
+                        public double derivative(double value) {
+                            throw new UnsupportedOperationException(
+                                    Errors.format(ErrorKeys.UNSUPPORTED_OPERATION_$1));
+                        }
+
+                        @Override
+                        public boolean isIdentity() {
+                            return false;
+                        }
+
+                        @Override
+                        public double transform(double value) {
+                            value =
+                                    normFactor
+                                            * Math.log(1 + (value * correctionFactor / normFactor));
+                            return value;
+                        }
+                    };
             final DefaultPiecewiseTransform1DElement mainElement =
                     DefaultPiecewiseTransform1DElement.create(
                             "logarithmic-contrast-enhancement-transform",
                             RangeFactory.create(minimum, maximum),
-                            new MathTransformationAdapter() {
-
-                                @Override
-                                public double derivative(double value) throws TransformException {
-                                    throw new UnsupportedOperationException(
-                                            Errors.format(ErrorKeys.UNSUPPORTED_OPERATION_$1));
-                                }
-
-                                @Override
-                                public boolean isIdentity() {
-                                    return false;
-                                }
-
-                                @Override
-                                public double transform(double value) {
-                                    value =
-                                            normalizationFactor
-                                                    * Math.log(
-                                                            1
-                                                                    + (value
-                                                                            * correctionFactor
-                                                                            / normalizationFactor));
-                                    return value;
-                                }
-                            });
+                            mt);
 
             return new DefaultPiecewiseTransform1D<>(
                     new DefaultPiecewiseTransform1DElement[] {mainElement}, 0);
@@ -593,7 +591,7 @@ public enum ContrastEnhancementType {
     private static NoDataContainer getDestinationNoData(ImageWorker inputWorker) {
         Range nodata = inputWorker.extractNoDataProperty(inputWorker.getRenderedImage());
         NoDataContainer imposedNoData = null;
-        if (nodata != null && !nodata.contains(0)) {
+        if (nodata != null) {
             imposedNoData = new NoDataContainer(0);
         }
         return imposedNoData;

@@ -54,10 +54,9 @@ import si.uom.SI;
 import systems.uom.common.USCustomary;
 
 @DescribeProcess(
-    title = "Snap",
-    description =
-            "Returns the feature in a feature collection nearest to a given point.  Attributes for distance and bearing are added."
-)
+        title = "Snap",
+        description =
+                "Returns the feature in a feature collection nearest to a given point.  Attributes for distance and bearing are added.")
 public class SnapProcess implements VectorProcess {
     private static final Logger LOGGER = Logging.getLogger(SnapProcess.class);
 
@@ -86,23 +85,20 @@ public class SnapProcess implements VectorProcess {
      * @throws ProcessException error
      */
     @DescribeResult(
-        name = "result",
-        description = "Nearest feature, with added attributes for distance and bearing."
-    )
+            name = "result",
+            description = "Nearest feature, with added attributes for distance and bearing.")
     public FeatureCollection execute(
             @DescribeParameter(name = "features", description = "Input feature collection")
                     FeatureCollection featureCollection,
             @DescribeParameter(
-                        name = "point",
-                        description = "Point geometry to test against for nearest feature"
-                    )
+                            name = "point",
+                            description = "Point geometry to test against for nearest feature")
                     Point point,
             @DescribeParameter(
-                        name = "crs",
-                        min = 0,
-                        description =
-                                "Coordinate reference system to assume for input geometry (default is to use the input collection CRS)"
-                    )
+                            name = "crs",
+                            min = 0,
+                            description =
+                                    "Coordinate reference system to assume for input geometry (default is to use the input collection CRS)")
                     CoordinateReferenceSystem crs)
             throws ProcessException {
         try {
@@ -140,14 +136,12 @@ public class SnapProcess implements VectorProcess {
                             new DistanceOp(
                                     point, (Geometry) f.getDefaultGeometryProperty().getValue());
                     Coordinate[] co = op.nearestPoints();
-                    double[] co0 =
-                            new double[] {
-                                co[0].x, co[0].y,
-                            };
-                    double[] co1 =
-                            new double[] {
-                                co[1].x, co[1].y,
-                            };
+                    double[] co0 = {
+                        co[0].x, co[0].y,
+                    };
+                    double[] co1 = {
+                        co[1].x, co[1].y,
+                    };
                     double[] geo0 = new double[2];
                     double[] geo1 = new double[2];
                     crsTransform.transform(co0, 0, geo0, 0, 1);

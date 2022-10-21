@@ -155,7 +155,8 @@ public class GeoTiffFormat extends AbstractGridFormat implements Format {
                                     READ_GRIDGEOMETRY2D,
                                     INPUT_TRANSPARENT_COLOR,
                                     SUGGESTED_TILE_SIZE,
-                                    RESCALE_PIXELS
+                                    RESCALE_PIXELS,
+                                    BANDS
                                 }));
 
         // writing parameters
@@ -181,7 +182,10 @@ public class GeoTiffFormat extends AbstractGridFormat implements Format {
      *     resource.
      */
     @Override
-    @SuppressWarnings("PMD.CloseResource") // might need to close, or not, conditional
+    @SuppressWarnings({
+        "PMD.CloseResource", // might need to close, or not, conditional
+        "PMD.UseTryWithResources" // image input stream is provided from outside
+    })
     public boolean accepts(Object o, Hints hints) {
 
         if (o == null) {

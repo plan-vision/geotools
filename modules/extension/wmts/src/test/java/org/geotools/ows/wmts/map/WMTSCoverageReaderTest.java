@@ -50,11 +50,14 @@ import org.geotools.http.MockHttpClient;
 import org.geotools.http.MockHttpResponse;
 import org.geotools.ows.ServiceException;
 import org.geotools.ows.wmts.WebMapTileServer;
+import org.geotools.ows.wmts.map.WMTSCoverageReader.TileRequest;
 import org.geotools.ows.wmts.model.WMTSCapabilities;
 import org.geotools.ows.wmts.model.WMTSLayer;
+import org.geotools.ows.wmts.request.AbstractGetTileRequest;
 import org.geotools.ows.wmts.request.GetTileRequest;
 import org.geotools.parameter.Parameter;
 import org.geotools.referencing.CRS;
+import org.geotools.referencing.crs.DefaultGeographicCRS;
 import org.geotools.tile.Tile;
 import org.geotools.wmts.WMTSConfiguration;
 import org.geotools.xsd.Parser;
@@ -72,7 +75,10 @@ public class WMTSCoverageReaderTest {
 
     @Test
     public void testRESTInitMapRequest() throws Exception {
-        WebMapTileServer server = createServer(REST_CAPA_RESOURCENAME);
+        WebMapTileServer server =
+                createServer(
+                        new URL("http://wmts.geo.admin.ch/1.0.0/WMTSCapabilities.xml"),
+                        REST_CAPA_RESOURCENAME);
         WMTSLayer layer =
                 server.getCapabilities().getLayer("ch.are.agglomerationen_isolierte_staedte");
         WMTSCoverageReader wcr = new WMTSCoverageReader(server, layer);
@@ -82,7 +88,10 @@ public class WMTSCoverageReaderTest {
 
     @Test
     public void testKVPInitMapRequest() throws Exception {
-        WebMapTileServer server = createServer(KVP_CAPA_RESOURCENAME);
+        WebMapTileServer server =
+                createServer(
+                        new URL("http://localhost:8080/geoserver/gwc/service/wmts"),
+                        KVP_CAPA_RESOURCENAME);
         WMTSLayer layer = server.getCapabilities().getLayer("topp:states");
         WMTSCoverageReader wcr = new WMTSCoverageReader(server, layer);
         ReferencedEnvelope bbox =
@@ -92,7 +101,10 @@ public class WMTSCoverageReaderTest {
 
     @Test
     public void testKVPInitMapRequestJpegOnly() throws Exception {
-        WebMapTileServer server = createServer(KVP_CAPA_RESOURCENAME);
+        WebMapTileServer server =
+                createServer(
+                        new URL("http://localhost:8080/geoserver/gwc/service/wmts"),
+                        KVP_CAPA_RESOURCENAME);
         WMTSLayer layer = server.getCapabilities().getLayer("topp:states_jpeg");
         WMTSCoverageReader wcr = new WMTSCoverageReader(server, layer);
         ReferencedEnvelope bbox =
@@ -226,19 +238,48 @@ public class WMTSCoverageReaderTest {
 
     @Test
     public void testRESTInitMapRequestWithJpegTemplatesOnly() throws Exception {
-        WebMapTileServer server = createServer("test-data/GetCapaJPEGOnly.xml");
+        WebMapTileServer server =
+                createServer(
+                        new URL("https://maps.wien.gv.at/basemap"),
+                        "test-data/GetCapaJPEGOnly.xml");
         WMTSLayer layer = server.getCapabilities().getLayer("bmaphidpi");
         WMTSCoverageReader wcr = new WMTSCoverageReader(server, layer);
         ReferencedEnvelope bbox = new ReferencedEnvelope(5, 12, 45, 49, CRS.decode("EPSG:4326"));
         int width = 400;
         int height = 200;
-        ReferencedEnvelope grid = wcr.initTileRequest(bbox, width, height, null);
-        assertNotNull(grid);
-        GetTileRequest mapRequest = wcr.getTileRequest();
-        String templateURL = mapRequest.getFinalURL().toExternalForm();
+        TileRequest request = wcr.initTileRequest(bbox, width, height, null);
+        assertNotNull(request);
+        GetTileRequest mapRequest = request.createTileRequest();
+        String templateURL = ((AbstractGetTileRequest) mapRequest).getTemplateUrl();
         assertEquals(
                 "https://maps.wien.gv.at/basemap/bmaphidpi/{Style}/{TileMatrixSet}/{TileMatrix}/{TileRow}/{TileCol}.jpeg",
                 templateURL);
+    }
+
+    @Test
+    public void testDoubleEncoding() throws Exception {
+        WebMapTileServer server =
+                createServer(
+                        new URL("https://geoportal.asig.gov.al/service/wmts"),
+                        "test-data/albania.xml");
+        WMTSLayer layer = server.getCapabilities().getLayer("orthophoto_2007:OrthoImagery");
+        WMTSCoverageReader wcr = new WMTSCoverageReader(server, layer);
+
+        ReferencedEnvelope bbox =
+                new ReferencedEnvelope(
+                        18.773065, 21.179343, 39.538499, 42.758209, DefaultGeographicCRS.WGS84);
+        int width = 400;
+        int height = 200;
+        TileRequest request = wcr.initTileRequest(bbox, width, height, null);
+        assertNotNull(request);
+        GetTileRequest mapRequest = request.createTileRequest();
+        Set<Tile> responses = mapRequest.getTiles();
+        for (Tile t : responses) {
+            assertNotNull(t);
+            assertFalse(
+                    "URL is double encoded " + t.getUrl(),
+                    t.getUrl().toString().contains("%253A")); // a double encoded :
+        }
     }
 
     protected Set<Tile> testInitMapRequest(WMTSCoverageReader wcr, ReferencedEnvelope bbox)
@@ -246,24 +287,21 @@ public class WMTSCoverageReaderTest {
 
         int width = 400;
         int height = 200;
-        ReferencedEnvelope grid = wcr.initTileRequest(bbox, width, height, null);
-        assertNotNull(grid);
-        GetTileRequest mapRequest = wcr.getTileRequest();
-        mapRequest.setCRS(grid.getCoordinateReferenceSystem());
-        Set<Tile> responses = wcr.wmts.issueRequest(mapRequest);
+        TileRequest request = wcr.initTileRequest(bbox, width, height, null);
+        assertNotNull(request);
+        GetTileRequest mapRequest = request.createTileRequest();
+        Set<Tile> responses = mapRequest.getTiles();
         for (Tile t : responses) {
-            /*System.out.println(t);
-            // System.out.println(t.getTileIdentifier() + " " + t.getExtent());*/
             assertNotNull(t);
         }
         return responses;
     }
 
-    private WebMapTileServer createServer(String resourceName) throws Exception {
+    private WebMapTileServer createServer(URL serverUrl, String resourceName) throws Exception {
 
         File capaFile = getResourceFile(resourceName);
         WMTSCapabilities capa = createCapabilities(capaFile);
-        return new WebMapTileServer(capa);
+        return new WebMapTileServer(serverUrl, capa);
     }
 
     private WMTSCapabilities createCapabilities(File capa) throws ServiceException {

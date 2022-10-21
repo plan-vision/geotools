@@ -25,7 +25,9 @@ import java.sql.Date;
 import java.sql.Time;
 import java.sql.Timestamp;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
+import java.util.concurrent.TimeUnit;
 import java.util.function.BiConsumer;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
@@ -38,6 +40,7 @@ import org.geotools.filter.LengthFunction;
 import org.geotools.filter.LiteralExpressionImpl;
 import org.geotools.filter.function.DateDifferenceFunction;
 import org.geotools.filter.function.FilterFunction_area;
+import org.geotools.filter.function.FilterFunction_buffer;
 import org.geotools.filter.function.FilterFunction_equalTo;
 import org.geotools.filter.function.FilterFunction_strConcat;
 import org.geotools.filter.function.FilterFunction_strEndsWith;
@@ -53,6 +56,7 @@ import org.geotools.filter.function.FilterFunction_strToUpperCase;
 import org.geotools.filter.function.FilterFunction_strTrim;
 import org.geotools.filter.function.FilterFunction_strTrim2;
 import org.geotools.filter.function.InArrayFunction;
+import org.geotools.filter.function.JsonArrayContainsFunction;
 import org.geotools.filter.function.JsonPointerFunction;
 import org.geotools.filter.function.math.FilterFunction_abs;
 import org.geotools.filter.function.math.FilterFunction_abs_2;
@@ -154,6 +158,7 @@ class FilterToSqlHelper {
         caps.addType(Ends.class);
         caps.addType(EndedBy.class);
         caps.addType(TEquals.class);
+        caps.addType(JsonArrayContainsFunction.class);
 
         // replacement for area function that was in deprecated dialect registerFunction
         caps.addType(FilterFunction_area.class);
@@ -194,6 +199,9 @@ class FilterToSqlHelper {
 
             // compare functions
             caps.addType(FilterFunction_equalTo.class);
+
+            // one geometry function (to support testing, but otherwise fully functional)
+            caps.addType(FilterFunction_buffer.class);
         }
         // native filter support
         caps.addType(NativeFilter.class);
@@ -518,12 +526,30 @@ class FilterToSqlHelper {
         if (function instanceof DateDifferenceFunction) {
             Expression d1 = getParameter(function, 0, true);
             Expression d2 = getParameter(function, 1, true);
-            // extract epoch returns seconds, DateDifference is defined in ms instead
+
+            List<Expression> params = function.getParameters();
+            // extract epoch returns seconds, DateDifference can be defined in
+            // a different time unit instead (ms as default).
+            double multiplyingFactor = 1000;
+            if (params.size() == 3) {
+                Expression expression = getParameter(function, 2, false);
+                if (expression instanceof Literal) {
+                    TimeUnit timeUnit = expression.evaluate(null, TimeUnit.class);
+                    if (timeUnit != TimeUnit.MILLISECONDS) {
+                        // Let's identify the multiplying factor to go from seconds to the
+                        // target time unit.
+                        // Doing an inverse math since convert will return 0 when converting
+                        // smaller units (i.e. 1 second) to bigger units (i.e. days)
+                        multiplyingFactor = 1d / TimeUnit.SECONDS.convert(1, timeUnit);
+                    }
+                }
+            }
+
             out.write("(extract(epoch from ");
             d1.accept(delegate, java.util.Date.class);
-            out.write(" - ");
+            out.write("::timestamp - ");
             d2.accept(delegate, java.util.Date.class);
-            out.write(") * 1000)");
+            out.write(") * " + multiplyingFactor + ")");
         } else if (function instanceof FilterFunction_area) {
             Expression s1 = getParameter(function, 0, true);
             out.write("ST_Area(");
@@ -619,12 +645,26 @@ class FilterToSqlHelper {
             out.write(")");
         } else if (function instanceof JsonPointerFunction) {
             encodeJsonPointer(function, extraData);
+        } else if (function instanceof JsonArrayContainsFunction) {
+            encodeJsonArrayContains(function);
+        } else if (function instanceof FilterFunction_buffer) {
+            encodeBuffer(function, extraData);
         } else {
             // function not supported
             return false;
         }
 
         return true;
+    }
+
+    private void encodeBuffer(Function function, Object extraData) throws IOException {
+        Expression source = getParameter(function, 0, true);
+        Expression distance = getParameter(function, 1, true);
+        out.write("ST_Buffer(");
+        source.accept(delegate, extraData);
+        out.write(", ");
+        distance.accept(delegate, extraData);
+        out.write(")");
     }
 
     private void encodeJsonPointer(Function jsonPointer, Object extraData) throws IOException {
@@ -660,6 +700,45 @@ class FilterToSqlHelper {
                 out.write(')');
                 out.write(cast("", (Class) extraData));
             }
+        }
+    }
+
+    public String buildJsonFromStrPointer(String[] pointers, Expression expectedExp) {
+        if (!"".equals(pointers[0])) {
+            if (pointers.length == 1) {
+                final String expected =
+                        getBaseType(expectedExp).isAssignableFrom(String.class)
+                                ? String.format(
+                                        "\"%s\"", ((Literal) expectedExp).getValue().toString())
+                                : ((Literal) expectedExp).getValue().toString();
+                return String.format("\"%s\": [%s]", pointers[0], expected);
+            } else {
+                return String.format(
+                        "\"%s\": { %s }",
+                        pointers[0],
+                        buildJsonFromStrPointer(
+                                Arrays.copyOfRange(pointers, 1, pointers.length), expectedExp));
+            }
+        } else
+            return buildJsonFromStrPointer(
+                    Arrays.copyOfRange(pointers, 1, pointers.length), expectedExp);
+    }
+
+    private void encodeJsonArrayContains(Function jsonArrayContains) throws IOException {
+        PropertyName column = (PropertyName) getParameter(jsonArrayContains, 0, true);
+        Literal jsonPath = (Literal) getParameter(jsonArrayContains, 1, true);
+        Expression expected = getParameter(jsonArrayContains, 2, true);
+
+        String[] strJsonPath = jsonPath.getValue().toString().split("/");
+        if (strJsonPath.length > 0) {
+            String jsonFilter =
+                    String.format("{ %s }", buildJsonFromStrPointer(strJsonPath, expected));
+            out.write(
+                    String.format(
+                            "\"%s\"::jsonb @> '%s'::jsonb", column.getPropertyName(), jsonFilter));
+        } else {
+            throw new IllegalArgumentException(
+                    "Cannot encode filter Invalid pointer " + jsonPath.getValue());
         }
     }
 

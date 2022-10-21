@@ -16,34 +16,45 @@
  */
 package org.geotools.jdbc;
 
+import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertNotNull;
+import static org.junit.Assert.assertNull;
+import static org.junit.Assert.assertTrue;
+
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.HashSet;
 import java.util.Set;
+import org.geotools.data.DataUtilities;
 import org.geotools.data.Join;
 import org.geotools.data.Join.Type;
 import org.geotools.data.Query;
 import org.geotools.data.simple.SimpleFeatureCollection;
 import org.geotools.data.simple.SimpleFeatureIterator;
 import org.geotools.data.store.ContentDataStore;
+import org.junit.Test;
 import org.opengis.feature.simple.SimpleFeature;
 import org.opengis.feature.simple.SimpleFeatureType;
 import org.opengis.feature.type.AttributeDescriptor;
 import org.opengis.filter.Filter;
 import org.opengis.filter.FilterFactory;
 import org.opengis.filter.FilterFactory2;
+import org.opengis.filter.identity.FeatureId;
 import org.opengis.filter.sort.SortOrder;
 
-@SuppressWarnings("PMD.JUnit4TestShouldUseTestAnnotation") // not yet a JUnit4 test
 public abstract class JDBCJoinOnlineTest extends JDBCTestSupport {
 
     @Override
     protected abstract JDBCJoinTestSetup createTestSetup();
 
+    @Test
     public void testSimpleJoin() throws Exception {
         doTestSimpleJoin(false);
         doTestSimpleJoin(true);
     }
 
+    @Test
     public void testJoinSchema() throws Exception {
         FilterFactory ff = dataStore.getFilterFactory();
         Query q = new Query(tname("ft1"));
@@ -115,6 +126,7 @@ public abstract class JDBCJoinOnlineTest extends JDBCTestSupport {
         }
     }
 
+    @Test
     public void testSimpleJoinOnPrimaryKey() throws Exception {
         dataStore.setExposePrimaryKeyColumns(true);
 
@@ -164,6 +176,7 @@ public abstract class JDBCJoinOnlineTest extends JDBCTestSupport {
         }
     }
 
+    @Test
     public void testSimpleJoinInvertedAliases() throws Exception {
         doTestSimpleJoinInvertedAliases(false);
         doTestSimpleJoinInvertedAliases(true);
@@ -217,6 +230,7 @@ public abstract class JDBCJoinOnlineTest extends JDBCTestSupport {
         }
     }
 
+    @Test
     public void testSimpleJoinWithFilter() throws Exception {
         doTestSimpleJoinWithFilter(false);
         doTestSimpleJoinWithFilter(true);
@@ -254,6 +268,7 @@ public abstract class JDBCJoinOnlineTest extends JDBCTestSupport {
         }
     }
 
+    @Test
     public void testSimpleJoinWithFilterNoProperties() throws Exception {
         doTestSimpleJoinWithFilterNoProperties(false);
         doTestSimpleJoinWithFilterNoProperties(true);
@@ -288,6 +303,7 @@ public abstract class JDBCJoinOnlineTest extends JDBCTestSupport {
         }
     }
 
+    @Test
     public void testSimpleJoinWithFilterCount() throws Exception {
         doTestSimpleJoinWithFilterCount(false);
         doTestSimpleJoinWithFilterCount(true);
@@ -311,6 +327,7 @@ public abstract class JDBCJoinOnlineTest extends JDBCTestSupport {
         assertEquals(1, dataStore.getFeatureSource(tname("ft1")).getCount(q));
     }
 
+    @Test
     public void testSimpleJoinWithPostFilter() throws Exception {
         doTestSimpleJoinWithPostFilter(false);
         doTestSimpleJoinWithPostFilter(true);
@@ -349,6 +366,7 @@ public abstract class JDBCJoinOnlineTest extends JDBCTestSupport {
         assertEquals(1, features.size());
     }
 
+    @Test
     public void testSimpleJoinWithPostFilterNoProperties() throws Exception {
         doTestSimpleJoinWithPostFilterNoProperties(false);
         doTestSimpleJoinWithPostFilterNoProperties(true);
@@ -390,6 +408,7 @@ public abstract class JDBCJoinOnlineTest extends JDBCTestSupport {
         assertEquals(1, features.size());
     }
 
+    @Test
     public void testSimpleJoinWithSort() throws Exception {
         doTestSimpleJoinWithSort(false);
         doTestSimpleJoinWithSort(true);
@@ -415,6 +434,7 @@ public abstract class JDBCJoinOnlineTest extends JDBCTestSupport {
         }
     }
 
+    @Test
     public void testSimpleJoinWithLimitOffset() throws Exception {
         doTestSimpleJoinWithLimitOffset(false);
         doTestSimpleJoinWithLimitOffset(true);
@@ -445,6 +465,7 @@ public abstract class JDBCJoinOnlineTest extends JDBCTestSupport {
         }
     }
 
+    @Test
     public void testSelfJoin() throws Exception {
         doTestSelfJoin(false);
         doTestSelfJoin(true);
@@ -483,6 +504,7 @@ public abstract class JDBCJoinOnlineTest extends JDBCTestSupport {
         }
     }
 
+    @Test
     public void testSpatialJoin() throws Exception {
         // doTestSpatialJoin(false);
         doTestSpatialJoin(true);
@@ -551,6 +573,7 @@ public abstract class JDBCJoinOnlineTest extends JDBCTestSupport {
         }
     }
 
+    @Test
     public void testOuterJoin() throws Exception {
         doTestOuterJoin(false);
         doTestOuterJoin(true);
@@ -590,6 +613,7 @@ public abstract class JDBCJoinOnlineTest extends JDBCTestSupport {
         }
     }
 
+    @Test
     public void testJoinMoreThanTwo() throws Exception {
         doJoinMoreThanTwo(false);
         doJoinMoreThanTwo(true);
@@ -622,8 +646,8 @@ public abstract class JDBCJoinOnlineTest extends JDBCTestSupport {
         assertEquals(3, features.size());
 
         try (SimpleFeatureIterator it = features.features()) {
-            String[] ft1StringProp = new String[] {"zero", "one", "two"};
-            String[] ftjoin2StringProp = new String[] {"2nd zero", "2nd one", "2nd two"};
+            String[] ft1StringProp = {"zero", "one", "two"};
+            String[] ftjoin2StringProp = {"2nd zero", "2nd one", "2nd two"};
 
             while (it.hasNext()) {
                 SimpleFeature f = it.next();
@@ -639,5 +663,30 @@ public abstract class JDBCJoinOnlineTest extends JDBCTestSupport {
                 assertEquals(ftjoin2StringProp[idx], g.getAttribute(aname("stringProperty2")));
             }
         }
+    }
+
+    @Test
+    public void testJoinWithFidFilter() throws Exception {
+        FilterFactory ff = dataStore.getFilterFactory();
+        Query q = new Query(tname("ft1"));
+        Join join =
+                new Join(
+                        tname("ftjoin"),
+                        ff.equal(
+                                ff.property(aname("stringProperty")),
+                                ff.property(aname("name")),
+                                true));
+        join.setAlias("b");
+        q.getJoins().add(join);
+        // add a filter for the feature id of the primary table
+        FeatureId id = ff.featureId(tname("ft1") + ".2");
+        q.setFilter(ff.id(Collections.singleton(id)));
+
+        SimpleFeatureCollection features = dataStore.getFeatureSource(tname("ft1")).getFeatures(q);
+        assertEquals(1, features.size());
+        SimpleFeature f = DataUtilities.first(features);
+        assertEquals(id.getID(), f.getID());
+        SimpleFeature b = (SimpleFeature) f.getAttribute("b");
+        assertEquals(tname("ftjoin") + ".2", b.getID());
     }
 }

@@ -74,8 +74,7 @@ public class GrassBinaryRasterWriteHandler implements Closeable {
     private long pointerInFilePosition = 0l;
 
     /** the range of the raster map as an array of minimum value and maximum value. */
-    private final double[] range =
-            new double[] {Double.POSITIVE_INFINITY, Double.NEGATIVE_INFINITY};
+    private final double[] range = {Double.POSITIVE_INFINITY, Double.NEGATIVE_INFINITY};
 
     /**
      * the data type for the output map.
@@ -358,7 +357,6 @@ public class GrassBinaryRasterWriteHandler implements Closeable {
      * @param chformat the map type.
      * @param chcompressed the compression type.
      */
-    @SuppressWarnings("nls")
     private void createCellhd(
             int chproj,
             int chzone,
@@ -448,15 +446,12 @@ public class GrassBinaryRasterWriteHandler implements Closeable {
         File projWtkFile = new File(projWtkFilePath);
         if (projWtkFile.exists()) {
 
-            BufferedReader crsReader = new BufferedReader(new FileReader(projWtkFile));
             StringBuffer wtkString = new StringBuffer();
-            try {
+            try (BufferedReader crsReader = new BufferedReader(new FileReader(projWtkFile))) {
                 String line = null;
                 while ((line = crsReader.readLine()) != null) {
                     wtkString.append(line.trim());
                 }
-            } finally {
-                crsReader.close();
             }
             try {
                 readCrs = CRS.parseWKT(wtkString.toString());

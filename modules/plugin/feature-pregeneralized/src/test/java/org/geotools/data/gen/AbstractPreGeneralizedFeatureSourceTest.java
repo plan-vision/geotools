@@ -83,7 +83,7 @@ public abstract class AbstractPreGeneralizedFeatureSourceTest {
             SimpleFeatureSource fs = ds.getFeatureSource("GenStreams");
             Assert.assertTrue(fs.getSupportedHints().contains(Hints.GEOMETRY_DISTANCE));
 
-            double[] distances = new double[] {1, 5, 10, 20, 25};
+            double[] distances = {1, 5, 10, 20, 25};
 
             for (double distance : distances) {
                 // System.out.println(distance);
@@ -173,7 +173,7 @@ public abstract class AbstractPreGeneralizedFeatureSourceTest {
 
             ReferencedEnvelope env = null;
             ReferencedEnvelope envOrig = fs.getBounds();
-            Assert.assertEquals(false, envOrig.isEmpty());
+            Assert.assertFalse(envOrig.isEmpty());
 
             for (Query q : queries) {
 
@@ -344,14 +344,11 @@ public abstract class AbstractPreGeneralizedFeatureSourceTest {
                 Assert.assertEquals("GenStreams", typeName);
                 Assert.assertEquals(
                         "the_geom", fCollection.getSchema().getGeometryDescriptor().getLocalName());
-                SimpleFeatureIterator iterator = fCollection.features();
-                try {
+                try (SimpleFeatureIterator iterator = fCollection.features()) {
                     while (iterator.hasNext()) {
                         SimpleFeature f = iterator.next();
                         checkPoints(f, 0.0);
                     }
-                } finally {
-                    iterator.close();
                 }
 
                 q.getHints().put(Hints.GEOMETRY_DISTANCE, 5.0);
@@ -360,14 +357,11 @@ public abstract class AbstractPreGeneralizedFeatureSourceTest {
                 Assert.assertEquals("GenStreams", typeName);
                 Assert.assertEquals(
                         "the_geom", fCollection.getSchema().getGeometryDescriptor().getLocalName());
-                iterator = fCollection.features();
-                try {
+                try (SimpleFeatureIterator iterator = fCollection.features()) {
                     while (iterator.hasNext()) {
                         SimpleFeature f = iterator.next();
                         checkPoints(f, 5.0);
                     }
-                } finally {
-                    iterator.close();
                 }
 
                 q.getHints().put(Hints.GEOMETRY_DISTANCE, 10.0);
@@ -376,14 +370,11 @@ public abstract class AbstractPreGeneralizedFeatureSourceTest {
                 Assert.assertEquals("GenStreams", typeName);
                 Assert.assertEquals(
                         "the_geom", fCollection.getSchema().getGeometryDescriptor().getLocalName());
-                iterator = fCollection.features();
-                try {
+                try (SimpleFeatureIterator iterator = fCollection.features()) {
                     while (iterator.hasNext()) {
                         SimpleFeature f = iterator.next();
                         checkPoints(f, 10.0);
                     }
-                } finally {
-                    iterator.close();
                 }
 
                 q.getHints().put(Hints.GEOMETRY_DISTANCE, 20.0);
@@ -392,14 +383,11 @@ public abstract class AbstractPreGeneralizedFeatureSourceTest {
                 Assert.assertEquals("GenStreams", typeName);
                 Assert.assertEquals(
                         "the_geom", fCollection.getSchema().getGeometryDescriptor().getLocalName());
-                iterator = fCollection.features();
-                try {
+                try (SimpleFeatureIterator iterator = fCollection.features()) {
                     while (iterator.hasNext()) {
                         SimpleFeature f = iterator.next();
                         checkPoints(f, 20.0);
                     }
-                } finally {
-                    iterator.close();
                 }
                 q.getHints().put(Hints.GEOMETRY_DISTANCE, 50.0);
                 fCollection = fs.getFeatures(q);
@@ -407,14 +395,11 @@ public abstract class AbstractPreGeneralizedFeatureSourceTest {
                 Assert.assertEquals("GenStreams", typeName);
                 Assert.assertEquals(
                         "the_geom", fCollection.getSchema().getGeometryDescriptor().getLocalName());
-                iterator = fCollection.features();
-                try {
+                try (SimpleFeatureIterator iterator = fCollection.features()) {
                     while (iterator.hasNext()) {
                         SimpleFeature f = iterator.next();
                         checkPoints(f, 0.0);
                     }
-                } finally {
-                    iterator.close();
                 }
             }
         } catch (Exception ex) {
@@ -444,30 +429,24 @@ public abstract class AbstractPreGeneralizedFeatureSourceTest {
             Assert.assertEquals("GenStreams", typeName);
             Assert.assertTrue(fCollection.size() > 0);
             Assert.assertFalse(fCollection.isEmpty());
-            SimpleFeatureIterator iterator = fCollection.features();
-            try {
+            try (SimpleFeatureIterator iterator = fCollection.features()) {
                 while (iterator.hasNext()) {
                     SimpleFeature f = iterator.next();
                     checkPoints(f, 0.0);
                 }
-            } finally {
-                iterator.close();
             }
             fCollection = fs.getFeatures(Filter.INCLUDE);
             typeName = fCollection.getSchema().getTypeName();
             Assert.assertEquals("GenStreams", typeName);
             Assert.assertTrue(fCollection.size() > 0);
             Assert.assertFalse(fCollection.isEmpty());
-            iterator = fCollection.features();
-            try {
+            try (SimpleFeatureIterator iterator = fCollection.features()) {
                 while (iterator.hasNext()) {
 
                     SimpleFeature f = iterator.next();
                     checkPoints(f, 0.0);
                 }
                 // iterator.remove() no longer provided
-            } finally {
-                iterator.close();
             }
             ds.dispose();
 

@@ -1,5 +1,7 @@
 package org.geotools.data.oracle;
 
+import static org.junit.Assert.assertEquals;
+
 import java.sql.Date;
 import java.sql.Timestamp;
 import java.util.TimeZone;
@@ -11,6 +13,7 @@ import org.geotools.feature.simple.SimpleFeatureBuilder;
 import org.geotools.jdbc.JDBCDateOnlineTest;
 import org.geotools.jdbc.JDBCDateTestSetup;
 import org.geotools.jdbc.JDBCFeatureStore;
+import org.junit.Test;
 import org.opengis.feature.simple.SimpleFeature;
 import org.opengis.feature.simple.SimpleFeatureType;
 import org.opengis.filter.Filter;
@@ -42,6 +45,8 @@ public class OracleDateOnlineTest extends JDBCDateOnlineTest {
         // not worth supporting it until someone has real time to deal with it
     }
 
+    @SuppressWarnings("PMD.UseTryWithResources") // need to rollback in catch
+    @Test
     public void testInsertTemporal() throws Exception {
         TimeZone originalTimeZone = TimeZone.getDefault();
         TimeZone gmtTimeZone = TimeZone.getTimeZone("GMT");
@@ -55,6 +60,7 @@ public class OracleDateOnlineTest extends JDBCDateOnlineTest {
             builder.add(new Timestamp(theTimestamp));
             SimpleFeature feature = builder.buildFeature(null);
 
+            @SuppressWarnings("PMD.UseTryWithResources") // need variable in catch
             Transaction t = new DefaultTransaction("add");
             JDBCFeatureStore fs = (JDBCFeatureStore) dataStore.getFeatureSource(timestampsTable, t);
             try {

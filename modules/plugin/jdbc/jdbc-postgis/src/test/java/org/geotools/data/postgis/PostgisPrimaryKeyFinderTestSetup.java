@@ -18,7 +18,6 @@ package org.geotools.data.postgis;
 
 import org.geotools.jdbc.JDBCPrimaryKeyFinderTestSetup;
 
-@SuppressWarnings("PMD.JUnit4TestShouldUseTestAnnotation") // not yet a JUnit4 test
 public class PostgisPrimaryKeyFinderTestSetup extends JDBCPrimaryKeyFinderTestSetup {
 
     protected PostgisPrimaryKeyFinderTestSetup() {
@@ -41,6 +40,8 @@ public class PostgisPrimaryKeyFinderTestSetup extends JDBCPrimaryKeyFinderTestSe
 
     @Override
     protected void dropMetadataTable() throws Exception {
+        // other tests set it up as a view as well
+        runSafe("DROP VIEW IF EXISTS gt_pk_metadata");
         runSafe("DROP TABLE gt_pk_metadata");
     }
 

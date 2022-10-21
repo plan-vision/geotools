@@ -36,10 +36,10 @@ package org.geotools.filter.function;
 @SuppressWarnings("unchecked") // for the life of me I cannot turn this into a type safe thing
 public final class RangedClassifier extends Classifier {
 
-    Comparable<?> min[];
-    Comparable<?> max[];
+    Comparable<?>[] min;
+    Comparable<?>[] max;
 
-    public RangedClassifier(Comparable min[], Comparable max[]) {
+    public RangedClassifier(Comparable[] min, Comparable[] max) {
         this.min = min;
         this.max = max;
         // initialize titles
@@ -99,7 +99,6 @@ public final class RangedClassifier extends Classifier {
         return classify((Comparable) value);
     }
 
-    @SuppressWarnings("rawtypes")
     private int classify(Comparable<?> val) {
         Comparable<?> value = val;
         if (val instanceof Integer) { // convert to double as java is stupid

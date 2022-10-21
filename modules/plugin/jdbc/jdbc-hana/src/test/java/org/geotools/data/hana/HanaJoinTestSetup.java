@@ -21,7 +21,6 @@ import org.geotools.jdbc.JDBCJoinTestSetup;
 import org.geotools.jdbc.JDBCTestSetup;
 
 /** @author Stefan Uhrig, SAP SE */
-@SuppressWarnings("PMD.JUnit4TestShouldUseTestAnnotation") // not yet a JUnit4 test
 public class HanaJoinTestSetup extends JDBCJoinTestSetup {
 
     private static final String TABLE1 = "ftjoin";
@@ -29,7 +28,7 @@ public class HanaJoinTestSetup extends JDBCJoinTestSetup {
     private static final String TABLE2 = "ftjoin2";
 
     public HanaJoinTestSetup() {
-        this(new HanaTestSetup());
+        this(new HanaTestSetupDefault());
     }
 
     public HanaJoinTestSetup(JDBCTestSetup setup) {
@@ -39,7 +38,7 @@ public class HanaJoinTestSetup extends JDBCJoinTestSetup {
     @Override
     protected void createJoinTable() throws Exception {
         try (Connection conn = getConnection()) {
-            HanaTestUtil htu = new HanaTestUtil(conn);
+            HanaTestUtil htu = new HanaTestUtil(conn, fixture);
             htu.createTestSchema();
 
             String[][] cols1 = {
@@ -91,7 +90,7 @@ public class HanaJoinTestSetup extends JDBCJoinTestSetup {
     @Override
     protected void dropJoinTable() throws Exception {
         try (Connection conn = getConnection()) {
-            HanaTestUtil htu = new HanaTestUtil(conn);
+            HanaTestUtil htu = new HanaTestUtil(conn, fixture);
             htu.dropTestTableCascade(TABLE1);
             htu.dropTestTableCascade(TABLE2);
         }

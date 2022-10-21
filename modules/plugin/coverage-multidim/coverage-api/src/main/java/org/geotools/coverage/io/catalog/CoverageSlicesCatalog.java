@@ -212,7 +212,6 @@ public class CoverageSlicesCatalog {
 
             String typeName = null;
             String[] typeNamesValues = null;
-            boolean scanForTypeNames = false;
 
             // Handle multiple typeNames
             if (params.containsKey(Utils.Prop.TYPENAME)) {
@@ -222,10 +221,7 @@ public class CoverageSlicesCatalog {
                 }
             }
 
-            if (params.containsKey(Utils.SCAN_FOR_TYPENAMES)) {
-                scanForTypeNames = Boolean.valueOf((String) (params.get(Utils.SCAN_FOR_TYPENAMES)));
-            }
-            if (typeNamesValues == null && scanForTypeNames) {
+            if (typeNamesValues == null) {
                 typeNamesValues = slicesIndexStore.getTypeNames();
             }
 
@@ -406,8 +402,7 @@ public class CoverageSlicesCatalog {
                         "The provided SimpleFeatureSource is null, it's impossible to create an index!");
             }
             Transaction tx = null;
-            SimpleFeatureIterator it = null;
-            try {
+            try { // NOPMD (UseTryWithResources)
 
                 // Transform feature stores will use an autoCommit transaction which doesn't
                 // have any state. Getting the features iterator may throw an exception
@@ -447,54 +442,51 @@ public class CoverageSlicesCatalog {
                 }
 
                 // load the feature from the underlying datastore as needed
-                it = features.features();
-                if (it == null) {
-                    if (LOGGER.isLoggable(Level.FINE)) {
-                        LOGGER.fine(
-                                "The provided SimpleFeatureCollection returned a null iterator, it's impossible to create an index!");
-                    }
-                    return Collections.emptyList();
-                }
-                if (!it.hasNext()) {
-                    if (LOGGER.isLoggable(Level.FINE)) {
-                        LOGGER.fine(
-                                "The provided SimpleFeatureCollection is empty, it's impossible to create an index!");
-                    }
-                    return Collections.emptyList();
-                }
-                if (LOGGER.isLoggable(Level.FINE)) {
-                    LOGGER.fine("Index Loaded");
-                }
-
-                // getting the features
-                while (it.hasNext()) {
-                    SimpleFeature feature = it.next();
-                    final SimpleFeature sf = feature;
-                    final CoverageSlice slice;
-
-                    // caching by granule's index
-                    synchronized (coverageSliceDescriptorsCache) {
-                        Integer granuleIndex = (Integer) sf.getAttribute(IMAGE_INDEX_ATTR);
-                        if (coverageSliceDescriptorsCache.containsKey(granuleIndex)) {
-                            slice = coverageSliceDescriptorsCache.get(granuleIndex);
-                        } else {
-                            // create the granule coverageDescriptor (eventually retyping its
-                            // feature)
-                            slice =
-                                    new CoverageSlice(
-                                            postRetypeRequired
-                                                    ? SimpleFeatureBuilder.retype(sf, target)
-                                                    : sf);
-                            coverageSliceDescriptorsCache.put(granuleIndex, slice);
+                try (SimpleFeatureIterator it = features.features()) {
+                    if (it == null) {
+                        if (LOGGER.isLoggable(Level.FINE)) {
+                            LOGGER.fine(
+                                    "The provided SimpleFeatureCollection returned a null iterator, it's impossible to create an index!");
                         }
+                        return Collections.emptyList();
                     }
-                    returnValue.add(slice);
+                    if (!it.hasNext()) {
+                        if (LOGGER.isLoggable(Level.FINE)) {
+                            LOGGER.fine(
+                                    "The provided SimpleFeatureCollection is empty, it's impossible to create an index!");
+                        }
+                        return Collections.emptyList();
+                    }
+                    if (LOGGER.isLoggable(Level.FINE)) {
+                        LOGGER.fine("Index Loaded");
+                    }
+
+                    // getting the features
+                    while (it.hasNext()) {
+                        SimpleFeature feature = it.next();
+                        final SimpleFeature sf = feature;
+                        final CoverageSlice slice;
+
+                        // caching by granule's index
+                        synchronized (coverageSliceDescriptorsCache) {
+                            Integer granuleIndex = (Integer) sf.getAttribute(IMAGE_INDEX_ATTR);
+                            if (coverageSliceDescriptorsCache.containsKey(granuleIndex)) {
+                                slice = coverageSliceDescriptorsCache.get(granuleIndex);
+                            } else {
+                                // create the granule coverageDescriptor (eventually retyping its
+                                // feature)
+                                slice =
+                                        new CoverageSlice(
+                                                postRetypeRequired
+                                                        ? SimpleFeatureBuilder.retype(sf, target)
+                                                        : sf);
+                                coverageSliceDescriptorsCache.put(granuleIndex, slice);
+                            }
+                        }
+                        returnValue.add(slice);
+                    }
                 }
             } finally {
-                if (it != null) {
-                    it.close();
-                }
-
                 if (tx != null) {
                     tx.close();
                 }
@@ -661,6 +653,7 @@ public class CoverageSlicesCatalog {
         }
     }
 
+    @SuppressWarnings("PMD.UseTryWithResources") // transaction needed in catch
     public void purge(Filter filter) throws IOException {
         DefaultTransaction transaction = null;
         try {

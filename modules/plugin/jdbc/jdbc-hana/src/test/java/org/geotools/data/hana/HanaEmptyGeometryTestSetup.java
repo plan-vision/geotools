@@ -21,7 +21,6 @@ import org.geotools.jdbc.JDBCEmptyGeometryTestSetup;
 import org.geotools.jdbc.JDBCTestSetup;
 
 /** @author Stefan Uhrig, SAP SE */
-@SuppressWarnings("PMD.JUnit4TestShouldUseTestAnnotation") // not yet a JUnit4 test
 public class HanaEmptyGeometryTestSetup extends JDBCEmptyGeometryTestSetup {
 
     private static final String TABLE = "empty";
@@ -33,7 +32,7 @@ public class HanaEmptyGeometryTestSetup extends JDBCEmptyGeometryTestSetup {
     @Override
     protected void createEmptyGeometryTable() throws Exception {
         try (Connection conn = getConnection()) {
-            HanaTestUtil htu = new HanaTestUtil(conn);
+            HanaTestUtil htu = new HanaTestUtil(conn, fixture);
             htu.createTestSchema();
 
             String[][] cols = {
@@ -54,7 +53,7 @@ public class HanaEmptyGeometryTestSetup extends JDBCEmptyGeometryTestSetup {
     @Override
     protected void dropEmptyGeometryTable() throws Exception {
         try (Connection conn = getConnection()) {
-            HanaTestUtil htu = new HanaTestUtil(conn);
+            HanaTestUtil htu = new HanaTestUtil(conn, fixture);
             htu.dropTestTableCascade(TABLE);
         }
     }

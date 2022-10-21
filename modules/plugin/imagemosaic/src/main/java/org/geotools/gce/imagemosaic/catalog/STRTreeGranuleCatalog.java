@@ -139,12 +139,12 @@ class STRTreeGranuleCatalog extends GranuleCatalog {
             final Properties params,
             AbstractGTDataStoreGranuleCatalog wrappedCatalogue,
             final Hints hints) {
-        super(hints);
+        super(hints, wrappedCatalogue.getConfigurations());
         Utilities.ensureNonNull("params", params);
         this.wrappedCatalogue = wrappedCatalogue;
         this.typeName = (String) params.get("TypeName");
         if (typeName == null) {
-            wrappedCatalogue.getValidTypeNames().iterator().next();
+            this.typeName = wrappedCatalogue.getValidTypeNames().iterator().next();
         }
     }
 
@@ -390,8 +390,7 @@ class STRTreeGranuleCatalog extends GranuleCatalog {
                 @SuppressWarnings("unchecked")
                 final List<GranuleDescriptor> unfilteredGranules = index.query(requestedBBox);
                 List<GranuleDescriptor> granules =
-                        unfilteredGranules
-                                .stream()
+                        unfilteredGranules.stream()
                                 .filter(gd -> filter.evaluate(gd.getOriginator()))
                                 .collect(Collectors.toList());
 
@@ -560,5 +559,10 @@ class STRTreeGranuleCatalog extends GranuleCatalog {
         } finally {
             lock.unlock();
         }
+    }
+
+    @Override
+    protected String getParentLocation() {
+        return wrappedCatalogue.getParentLocation();
     }
 }

@@ -16,7 +16,11 @@
  */
 package org.geotools.jdbc;
 
-import org.geotools.referencing.CRS;
+import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertNotNull;
+import static org.junit.Assert.assertTrue;
+
+import org.junit.Test;
 import org.opengis.feature.simple.SimpleFeatureType;
 
 /**
@@ -24,7 +28,6 @@ import org.opengis.feature.simple.SimpleFeatureType;
  *
  * @author Andrea Aime
  */
-@SuppressWarnings("PMD.JUnit4TestShouldUseTestAnnotation") // not yet a JUnit4 test
 public abstract class JDBCFeatureSourceExposePkOnlineTest extends JDBCFeatureSourceOnlineTest {
 
     @Override
@@ -34,11 +37,12 @@ public abstract class JDBCFeatureSourceExposePkOnlineTest extends JDBCFeatureSou
     }
 
     @Override
+    @Test
     public void testSchema() throws Exception {
         SimpleFeatureType schema = featureSource.getSchema();
         assertEquals(tname("ft1"), schema.getTypeName());
         assertEquals(dataStore.getNamespaceURI(), schema.getName().getNamespaceURI());
-        assertTrue(areCRSEqual(CRS.decode("EPSG:4326"), schema.getCoordinateReferenceSystem()));
+        assertTrue(areCRSEqual(decodeEPSG(4326), schema.getCoordinateReferenceSystem()));
 
         assertEquals(5, schema.getAttributeCount());
         assertNotNull(schema.getDescriptor(aname("id")));

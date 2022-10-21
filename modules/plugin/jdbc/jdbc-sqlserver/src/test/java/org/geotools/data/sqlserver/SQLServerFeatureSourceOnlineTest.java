@@ -16,6 +16,9 @@
  */
 package org.geotools.data.sqlserver;
 
+import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertTrue;
+
 import org.geotools.data.Query;
 import org.geotools.data.simple.SimpleFeatureCollection;
 import org.geotools.data.simple.SimpleFeatureIterator;
@@ -43,14 +46,11 @@ public class SQLServerFeatureSourceOnlineTest extends JDBCFeatureSourceOnlineTes
         assertEquals(1, features.size());
 
         // check actual iteration
-        SimpleFeatureIterator it = features.features();
         int count = 0;
-        try {
+        try (SimpleFeatureIterator it = features.features()) {
             assertTrue(it.hasNext());
             it.next();
             count++;
-        } finally {
-            it.close();
         }
         assertEquals(1, count);
     }

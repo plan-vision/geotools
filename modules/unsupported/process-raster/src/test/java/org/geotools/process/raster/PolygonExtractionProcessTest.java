@@ -74,8 +74,8 @@ public class PolygonExtractionProcessTest {
     public void simpleSmallCoverage() throws Exception {
         GridCoverage2D cov = buildSmallCoverage();
 
-        final int perimeters[] = {4, 16, 4};
-        final int areas[] = {1, 7, 1};
+        final int[] perimeters = {4, 16, 4};
+        final int[] areas = {1, 7, 1};
 
         SimpleFeatureCollection fc = process.execute(cov, 0, Boolean.TRUE, null, null, null, null);
         assertEquals(3, fc.size());
@@ -239,9 +239,8 @@ public class PolygonExtractionProcessTest {
                 process.execute(cov, 0, Boolean.TRUE, null, noDataValues, null, null);
 
         // validate geometries and sum areas
-        SimpleFeatureIterator iter = fc.features();
         Map<Integer, Double> areas = new HashMap<>();
-        try {
+        try (SimpleFeatureIterator iter = fc.features()) {
             while (iter.hasNext()) {
                 SimpleFeature feature = iter.next();
                 Geometry geom = (Geometry) feature.getDefaultGeometry();
@@ -257,8 +256,6 @@ public class PolygonExtractionProcessTest {
                     areas.put(value, sum);
                 }
             }
-        } finally {
-            iter.close();
         }
 
         // compare summed areas to image data

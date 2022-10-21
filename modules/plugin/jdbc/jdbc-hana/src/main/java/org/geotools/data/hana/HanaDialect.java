@@ -43,6 +43,7 @@ import org.geotools.jdbc.JDBCDataStore;
 import org.geotools.jdbc.PreparedFilterToSQL;
 import org.geotools.jdbc.PreparedStatementSQLDialect;
 import org.geotools.referencing.CRS;
+import org.geotools.util.factory.Hints;
 import org.locationtech.jts.geom.Envelope;
 import org.locationtech.jts.geom.Geometry;
 import org.locationtech.jts.geom.GeometryCollection;
@@ -133,6 +134,12 @@ public class HanaDialect extends PreparedStatementSQLDialect {
         CLASS_TO_SQL_TYPE.put(GeometryCollection.class, GEOMETRY_TYPE_CODE);
     }
 
+    private static final Map<Integer, String> SQL_TYPE_TO_SQL_TYPE_NAME = new HashMap<>();
+
+    static {
+        SQL_TYPE_TO_SQL_TYPE_NAME.put(Types.CLOB, "CLOB");
+    }
+
     private static final String GEOMETRY_TYPE_NAME = "ST_Geometry";
 
     public HanaDialect(JDBCDataStore dataStore) {
@@ -195,6 +202,12 @@ public class HanaDialect extends PreparedStatementSQLDialect {
     }
 
     @Override
+    public void registerSqlTypeToSqlTypeNameOverrides(Map<Integer, String> overrides) {
+        super.registerSqlTypeToSqlTypeNameOverrides(overrides);
+        overrides.putAll(SQL_TYPE_TO_SQL_TYPE_NAME);
+    }
+
+    @Override
     public String getGeometryTypeName(Integer type) {
         return GEOMETRY_TYPE_NAME;
     }
@@ -222,6 +235,7 @@ public class HanaDialect extends PreparedStatementSQLDialect {
             rs = ps.executeQuery();
             if (!rs.next()) return null;
             int srid = rs.getInt(1);
+            if (rs.wasNull()) return null;
             if (rs.next()) return null;
             return srid;
         } finally {
@@ -418,8 +432,26 @@ public class HanaDialect extends PreparedStatementSQLDialect {
     @Override
     public void encodeGeometryColumnSimplified(
             GeometryDescriptor gatt, String prefix, int srid, StringBuffer sql, Double distance) {
-        // TODO Enable once ST_Simplify is available
-        throw new UnsupportedOperationException("Geometry simplification not supported");
+        encodeColumnName(prefix, gatt.getLocalName(), sql);
+        if ((distance != null)
+                && (distance >= 0.0)
+                && isPlanarCRS(gatt.getCoordinateReferenceSystem())) {
+            sql.append(".ST_Simplify(");
+            sql.append(distance.toString());
+            sql.append(")");
+        }
+        sql.append(".ST_AsBinary()");
+    }
+
+    private boolean isPlanarCRS(CoordinateReferenceSystem crs) {
+        if (crs == null) {
+            return false;
+        }
+        CoordinateReferenceSystem hcrs = CRS.getHorizontalCRS(crs);
+        if (hcrs == null) {
+            return false;
+        }
+        return !(hcrs instanceof GeographicCRS);
     }
 
     @Override
@@ -761,7 +793,10 @@ public class HanaDialect extends PreparedStatementSQLDialect {
 
     @Override
     protected void addSupportedHints(Set<org.geotools.util.factory.Hints.Key> hints) {
-        // TODO Add Hints#GEOMETRY_SIMPLIFICATION as soon as it is available
+        if ((hanaVersion.getVersion() > 2)
+                || ((hanaVersion.getVersion() == 2) && (hanaVersion.getRevision() >= 40))) {
+            hints.add(Hints.GEOMETRY_SIMPLIFICATION);
+        }
     }
 
     @Override
@@ -785,7 +820,6 @@ public class HanaDialect extends PreparedStatementSQLDialect {
     }
 
     @Override
-    @SuppressWarnings("rawtypes")
     public void prepareGeometryValue(
             Class<? extends Geometry> gClass,
             int dimension,
@@ -798,7 +832,6 @@ public class HanaDialect extends PreparedStatementSQLDialect {
     }
 
     @Override
-    @SuppressWarnings("rawtypes")
     public void setGeometryValue(
             Geometry g, int dimension, int srid, Class binding, PreparedStatement ps, int column)
             throws SQLException {
@@ -816,7 +849,6 @@ public class HanaDialect extends PreparedStatementSQLDialect {
     }
 
     @Override
-    @SuppressWarnings("rawtypes")
     public void setValue(
             Object value, Class binding, PreparedStatement ps, int column, Connection cx)
             throws SQLException {

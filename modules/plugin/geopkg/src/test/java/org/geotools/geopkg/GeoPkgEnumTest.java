@@ -3,6 +3,10 @@ package org.geotools.geopkg;
 import static org.hamcrest.CoreMatchers.instanceOf;
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.junit.Assert.assertArrayEquals;
+import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertNotNull;
+import static org.junit.Assert.assertNull;
+import static org.junit.Assert.assertTrue;
 
 import java.io.File;
 import java.io.IOException;
@@ -125,6 +129,7 @@ public class GeoPkgEnumTest extends JDBCTestSupport {
         }
     }
 
+    @Test
     public void createTwoSchemaWithEnum() throws Exception {
         // create two tables with the same columns
         dataStore.createSchema(getEnumFeatureType("ft2"));
@@ -135,16 +140,14 @@ public class GeoPkgEnumTest extends JDBCTestSupport {
         GeoPackage geoPackage = new GeoPackage(dataStore);
         GeoPkgSchemaExtension schemas = geoPackage.getExtension(GeoPkgSchemaExtension.class);
         Map<String, DataColumn> ft2Columns =
-                schemas.getDataColumns("ft2")
-                        .stream()
+                schemas.getDataColumns("ft2").stream()
                         .collect(Collectors.toMap(dc -> dc.getColumnName(), dc -> dc));
         DataColumn ft2Enum = ft2Columns.get("enumProperty");
         assertThat(ft2Enum.getConstraint(), instanceOf(DataColumnConstraint.Enum.class));
         assertEquals("enumProperty", ft2Enum.getColumnName());
 
         Map<String, DataColumn> ft3Columns =
-                schemas.getDataColumns("ft3")
-                        .stream()
+                schemas.getDataColumns("ft3").stream()
                         .collect(Collectors.toMap(dc -> dc.getColumnName(), dc -> dc));
         DataColumn ft3Enum = ft3Columns.get("enumProperty");
         assertThat(ft3Enum.getConstraint(), instanceOf(DataColumnConstraint.Enum.class));

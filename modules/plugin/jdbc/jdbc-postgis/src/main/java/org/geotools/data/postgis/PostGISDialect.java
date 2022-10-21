@@ -80,6 +80,7 @@ import org.opengis.filter.FilterFactory2;
 import org.opengis.filter.expression.Expression;
 import org.opengis.filter.expression.Function;
 import org.opengis.filter.expression.Literal;
+import org.opengis.referencing.FactoryException;
 import org.opengis.referencing.crs.CoordinateReferenceSystem;
 
 public class PostGISDialect extends BasicSQLDialect {
@@ -192,6 +193,8 @@ public class PostGISDialect extends BasicSQLDialect {
 
     public PostGISDialect(JDBCDataStore dataStore) {
         super(dataStore);
+        this.forceLongitudeFirst =
+                true; // PostGIS has an XY axis order, so forceLongitudeFirst is set.
     }
 
     boolean looseBBOXEnabled = false;
@@ -685,6 +688,51 @@ public class PostGISDialect extends BasicSQLDialect {
         }
     }
 
+    /** Using PostGIS table spatial_ref_sys to determine authority name and code of srid */
+    @Override
+    public CoordinateReferenceSystem createCRS(int srid, Connection cx) throws SQLException {
+        if (srid <= 0) {
+            return null;
+        }
+        String sqlStatement =
+                "SELECT AUTH_NAME, AUTH_SRID, SRTEXT FROM SPATIAL_REF_SYS WHERE SRID = " + srid;
+        try (Statement statement = cx.createStatement();
+                ResultSet result = statement.executeQuery(sqlStatement)) {
+            if (!result.next()) {
+                LOGGER.warning("SPATIAL_REF_SYS didn't have a row for srid: " + srid);
+                return null;
+            }
+            String code = result.getString(1) + ":" + Integer.toString(result.getInt(2));
+            CoordinateReferenceSystem crs = null;
+            try {
+                crs = CRS.decode(code, true);
+            } catch (FactoryException e) {
+                LOGGER.log(Level.FINE, "Failed to decode " + code + ".", e);
+            }
+            if (crs == null) {
+                String wkt = result.getString(3);
+                try {
+                    crs = CRS.parseWKT(wkt);
+                } catch (FactoryException e) {
+                    LOGGER.log(
+                            Level.WARNING,
+                            "Failed to parse wkt! "
+                                    + e.getMessage()
+                                    + " The problematic WKT is: "
+                                    + wkt,
+                            e);
+                }
+            }
+            return crs;
+        } catch (SQLException e) {
+            LOGGER.log(
+                    Level.WARNING,
+                    "Failed to retrive information from SPATIAL_REF_SYS for srid: " + srid,
+                    e);
+        }
+        return null;
+    }
+
     @Override
     public Integer getGeometrySRID(
             String schemaName, String tableName, String columnName, Connection cx)
@@ -1070,6 +1118,7 @@ public class PostGISDialect extends BasicSQLDialect {
         overrides.put(Types.VARCHAR, "VARCHAR");
         overrides.put(Types.BOOLEAN, "BOOL");
         overrides.put(Types.BLOB, "BYTEA");
+        overrides.put(Types.CLOB, "TEXT");
     }
 
     @Override
@@ -1561,5 +1610,10 @@ public class PostGISDialect extends BasicSQLDialect {
     @Override
     public String[] getDesiredTablesType() {
         return new String[] {"TABLE", "VIEW", "MATERIALIZED VIEW", "SYNONYM", "PARTITIONED TABLE"};
+    }
+
+    @Override
+    public boolean canGroupOnGeometry() {
+        return true;
     }
 }

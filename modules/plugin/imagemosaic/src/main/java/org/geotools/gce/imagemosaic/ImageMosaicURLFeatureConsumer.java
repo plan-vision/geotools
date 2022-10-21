@@ -59,16 +59,19 @@ public class ImageMosaicURLFeatureConsumer implements ImageMosaicElementConsumer
         ImageMosaicConfigHandler configHandler = walker.getConfigHandler();
         CatalogBuilderConfiguration runConfiguration = configHandler.getRunConfiguration();
         String locationAttrName = runConfiguration.getParameter(Utils.Prop.LOCATION_ATTRIBUTE);
-        Object locationAttrObj = feature.getAttribute(locationAttrName);
-        String location = (String) locationAttrObj;
+        String location = (String) Utils.getAttribute(feature, locationAttrName);
+        if (location == null) {
+            throw new IllegalArgumentException(
+                    "Could not find the location using attribute name: " + locationAttrName);
+        }
         imageMosaicURLConsumer.handleElement(new URL(location), walker);
     }
 
     static class ImageMosaicURLConsumer implements ImageMosaicElementConsumer<URL> {
 
-        private URLSourceSPIProvider sourceSPIProvider;
+        private SourceSPIProviderFactory sourceSPIProvider;
 
-        public ImageMosaicURLConsumer(URLSourceSPIProvider sourceSPIProvider) {
+        public ImageMosaicURLConsumer(SourceSPIProviderFactory sourceSPIProvider) {
             this.sourceSPIProvider = sourceSPIProvider;
         }
 

@@ -77,8 +77,9 @@ public class DBCPDataSourceFactory extends AbstractDataSourceFactorySpi {
                     "The maximum number of idle connections in the pool",
                     true);
 
-    private static final Param[] PARAMS =
-            new Param[] {DSTYPE, DRIVERCLASS, JDBC_URL, USERNAME, PASSWORD, MAXACTIVE, MAXIDLE};
+    private static final Param[] PARAMS = {
+        DSTYPE, DRIVERCLASS, JDBC_URL, USERNAME, PASSWORD, MAXACTIVE, MAXIDLE
+    };
 
     @Override
     public DataSource createDataSource(Map<String, ?> params) throws IOException {
@@ -91,6 +92,7 @@ public class DBCPDataSourceFactory extends AbstractDataSourceFactorySpi {
     }
 
     @Override
+    @SuppressWarnings("PMD.UseTryWithResources") // just a conn. test, we want to manage closing
     public DataSource createNewDataSource(Map<String, ?> params) throws IOException {
         BasicDataSource dataSource = new BasicDataSource();
         dataSource.setDriverClassName((String) DRIVERCLASS.lookUp(params));

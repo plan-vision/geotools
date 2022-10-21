@@ -68,12 +68,12 @@ public final class FactoryRegistryTest {
      * @param creator {@code true} if the registry should be an instance of {@link
      *     org.geotools.util.factory.FactoryCreator}.
      */
+    @SuppressWarnings("PMD.UnusedPrivateMethod") // PMD getting confused here?
     private FactoryRegistry getRegistry(
             final boolean creator,
             final Factory factory1,
             final Factory factory2,
             final Factory factory3) {
-        @SuppressWarnings("unchecked")
         final Set<Class<?>> categories = Collections.singleton(DummyFactory.class);
         // The above line fails without the cast, I don't know why...
         final FactoryRegistry registry;

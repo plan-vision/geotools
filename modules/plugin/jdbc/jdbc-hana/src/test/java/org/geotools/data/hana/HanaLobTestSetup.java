@@ -21,7 +21,6 @@ import org.geotools.jdbc.JDBCLobTestSetup;
 import org.geotools.jdbc.JDBCTestSetup;
 
 /** @author Stefan Uhrig, SAP SE */
-@SuppressWarnings("PMD.JUnit4TestShouldUseTestAnnotation") // not yet a JUnit4 test
 public class HanaLobTestSetup extends JDBCLobTestSetup {
 
     private static final String TABLE = "testlob";
@@ -33,7 +32,7 @@ public class HanaLobTestSetup extends JDBCLobTestSetup {
     @Override
     protected void createLobTable() throws Exception {
         try (Connection conn = getConnection()) {
-            HanaTestUtil htu = new HanaTestUtil(conn);
+            HanaTestUtil htu = new HanaTestUtil(conn, fixture);
             htu.createTestSchema();
 
             String[][] cols = {
@@ -56,7 +55,7 @@ public class HanaLobTestSetup extends JDBCLobTestSetup {
     @Override
     protected void dropLobTable() throws Exception {
         try (Connection conn = getConnection()) {
-            HanaTestUtil htu = new HanaTestUtil(conn);
+            HanaTestUtil htu = new HanaTestUtil(conn, fixture);
             htu.dropTestTableCascade(TABLE);
         }
     }

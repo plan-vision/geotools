@@ -36,6 +36,7 @@ package org.geotools.gce.geotiff;
 
 import it.geosolutions.imageio.core.BasicAuthURI;
 import it.geosolutions.imageio.maskband.DatasetLayout;
+import it.geosolutions.imageio.plugins.tiff.TIFFImageReadParam;
 import it.geosolutions.imageio.utilities.ImageIOUtilities;
 import it.geosolutions.imageioimpl.plugins.cog.CogImageInputStreamSpi;
 import it.geosolutions.imageioimpl.plugins.cog.CogSourceSPIProvider;
@@ -47,6 +48,7 @@ import java.awt.Rectangle;
 import java.awt.RenderingHints;
 import java.awt.geom.AffineTransform;
 import java.awt.image.ColorModel;
+import java.awt.image.DataBuffer;
 import java.awt.image.SampleModel;
 import java.awt.image.renderable.ParameterBlock;
 import java.io.File;
@@ -156,7 +158,7 @@ public class GeoTiffReader extends AbstractGridCoverage2DReader implements GridC
             Boolean.valueOf(System.getProperty(GeoTiffReader.OVERRIDE_CRS_SWITCH, "True"));
 
     /** SPI for creating tiff readers in ImageIO tools when not using COG */
-    private static final TIFFImageReaderSpi TIFF_READER_SPI = new TIFFImageReaderSpi();
+    static final TIFFImageReaderSpi TIFF_READER_SPI = new TIFFImageReaderSpi();
 
     private ImageReaderSpi readerSpi;
 
@@ -198,6 +200,9 @@ public class GeoTiffReader extends AbstractGridCoverage2DReader implements GridC
      * @param input the GeoTiff file
      * @param uHints user-supplied hints TODO currently are unused
      */
+    @SuppressWarnings({
+        "PMD.UseTryWithResources" // closing is conditional
+    })
     public GeoTiffReader(Object input, Hints uHints) throws DataSourceException {
         super(input, uHints);
 
@@ -307,6 +312,8 @@ public class GeoTiffReader extends AbstractGridCoverage2DReader implements GridC
     }
 
     /** Collect georeferencing information about this geotiff. */
+    // stream is reset, not closed. The self assignment has a cast, may change the value
+    @SuppressWarnings({"PMD.UseTryWithResources", "SelfAssignment"})
     private void getHRInfo(Hints hints) throws DataSourceException {
         ImageReader reader = null;
         ImageReader ovrReader = null;
@@ -362,6 +369,14 @@ public class GeoTiffReader extends AbstractGridCoverage2DReader implements GridC
             //
             if (metadata.hasNoData()) {
                 noData = metadata.getNoData();
+                SampleModel sampleModel = reader.getImageTypes(0).next().getSampleModel();
+
+                // nodata is stored as double, but pixels are float? need to cast the
+                // nodata though float to get a representation that would succesfully compare
+                // against the pixels
+                if (sampleModel.getDataType() == DataBuffer.TYPE_FLOAT) {
+                    noData = (float) noData;
+                }
             }
 
             // collect scales and offsets is present
@@ -377,6 +392,17 @@ public class GeoTiffReader extends AbstractGridCoverage2DReader implements GridC
             //
             dtLayout = TiffDatasetLayoutImpl.parseLayout(reader.getStreamMetadata());
 
+            // allows to skip the .ovr files lookup
+            boolean skipOverviews =
+                    (Boolean)
+                            hints.getOrDefault(
+                                    Hints.SKIP_EXTERNAL_OVERVIEWS,
+                                    ImageIOUtilities.isSkipExternalFilesLookup());
+            if (skipOverviews) {
+                LOGGER.log(Level.FINE, "Skipping GeoTiff overview sidecar files for {0}", source);
+                ((TiffDatasetLayoutImpl) dtLayout).setNumExternalOverviews(0);
+            }
+
             // Creating a new OverviewsProvider instance
             File inputFile = null;
             if (source instanceof File) {
@@ -384,14 +410,26 @@ public class GeoTiffReader extends AbstractGridCoverage2DReader implements GridC
             } else if (source instanceof URL && (((URL) source).getProtocol() == "file")) {
                 inputFile = URLs.urlToFile((URL) source);
             }
+            // assume overviews are also TIFFs, that's the 99% case
             if (inputFile != null) {
-                maskOvrProvider = new MaskOverviewProvider(dtLayout, inputFile);
+                URL url = URLs.fileToUrl(inputFile);
+                maskOvrProvider =
+                        new MaskOverviewProvider(
+                                dtLayout,
+                                url,
+                                new MaskOverviewProvider.SpiHelper(url, TIFF_READER_SPI),
+                                skipOverviews);
                 hasMaskOvrProvider = true;
             } else if (dtLayout != null && dtLayout.getExternalMasks() != null) {
                 String path = dtLayout.getExternalMasks().getAbsolutePath();
+                File file = new File(path.substring(0, path.length() - 4));
+                URL url = URLs.fileToUrl(file);
                 maskOvrProvider =
                         new MaskOverviewProvider(
-                                dtLayout, new File(path.substring(0, path.length() - 4)));
+                                dtLayout,
+                                url,
+                                new MaskOverviewProvider.SpiHelper(url, TIFF_READER_SPI),
+                                skipOverviews);
                 hasMaskOvrProvider = true;
             } else if (source instanceof CogSourceSPIProvider) {
                 CogSourceSPIProvider cogSourceProvider = (CogSourceSPIProvider) source;
@@ -400,7 +438,7 @@ public class GeoTiffReader extends AbstractGridCoverage2DReader implements GridC
                                 null,
                                 cogSourceProvider.getSourceUrl(),
                                 new MaskOverviewProvider.SpiHelper(cogSourceProvider),
-                                false);
+                                skipOverviews);
                 hasMaskOvrProvider = true;
             }
 
@@ -585,6 +623,7 @@ public class GeoTiffReader extends AbstractGridCoverage2DReader implements GridC
         Color inputTransparentColor = null;
         OverviewPolicy overviewPolicy = null;
         int[] suggestedTileSize = null;
+        int[] bands = null;
         boolean rescalePixels = AbstractGridFormat.RESCALE_PIXELS.getDefaultValue();
 
         //
@@ -631,6 +670,9 @@ public class GeoTiffReader extends AbstractGridCoverage2DReader implements GridC
                 if (name.equals(AbstractGridFormat.RESCALE_PIXELS.getName())) {
                     rescalePixels = Boolean.TRUE.equals(param.getValue());
                 }
+                if (name.equals(AbstractGridFormat.BANDS.getName())) {
+                    bands = (int[]) param.getValue();
+                }
             }
         }
 
@@ -638,11 +680,19 @@ public class GeoTiffReader extends AbstractGridCoverage2DReader implements GridC
         // set params
         //
         Integer imageChoice = Integer.valueOf(0);
-        final ImageReadParam readP = new ImageReadParam();
+        final TIFFImageReadParam readP = new TIFFImageReadParam();
         try {
             imageChoice = setReadParams(overviewPolicy, readP, requestedEnvelope, dim);
         } catch (TransformException e) {
             throw new DataSourceException(e);
+        }
+        if (bands != null) {
+            // the destination type is set to support ImageReadOp, as it cannot recognize
+            // the bands parameter (which is otherwise needed to support repeated band numbers)
+            readP.setBands(bands);
+            readP.setDestinationType(
+                    ImageIOUtilities.getBandSelectedType(
+                            bands.length, getImageLayout().getSampleModel(null)));
         }
 
         //
@@ -704,6 +754,8 @@ public class GeoTiffReader extends AbstractGridCoverage2DReader implements GridC
                 t.setProperty(NoDataContainer.GC_NODATA, new NoDataContainer(noData));
                 coverageRaster = t;
             }
+            Double[] scales = selectElements(this.scales, bands);
+            Double[] offsets = selectElements(this.offsets, bands);
             coverageRaster =
                     PlanarImage.wrapRenderedImage(
                             ImageUtilities.applyRescaling(
@@ -769,6 +821,15 @@ public class GeoTiffReader extends AbstractGridCoverage2DReader implements GridC
         }
     }
 
+    private Double[] selectElements(Double[] source, int[] bands) {
+        if (bands == null || source == null) return source;
+        Double[] result = new Double[bands.length];
+        for (int b = 0; b < bands.length; b++) {
+            result[b] = source[bands[b]];
+        }
+        return result;
+    }
+
     private ImageInputStream getImageInputStream() throws IOException {
         if (inStream instanceof ImageInputStream && !closeMe) {
             return inStream;
@@ -822,7 +883,10 @@ public class GeoTiffReader extends AbstractGridCoverage2DReader implements GridC
      *
      * @return the metadata
      */
-    @SuppressWarnings("PMD.CloseResource") // conditional, might have to close the stream, or not
+    @SuppressWarnings({
+        "PMD.CloseResource",
+        "PMD.UseTryWithResources"
+    }) // conditional, might have to close the stream, or not
     public GeoTiffIIOMetadataDecoder getMetadata() {
         GeoTiffIIOMetadataDecoder metadata = null;
         ImageReader reader = null;
@@ -904,7 +968,7 @@ public class GeoTiffReader extends AbstractGridCoverage2DReader implements GridC
 
         Category noDataCategory = null;
         final Map<String, Object> properties = new HashMap<>();
-        if (!Double.isNaN(noData)) {
+        if (Double.isFinite(noData)) {
             noDataCategory =
                     new Category(
                             Vocabulary.formatInternational(VocabularyKeys.NODATA),
@@ -979,25 +1043,14 @@ public class GeoTiffReader extends AbstractGridCoverage2DReader implements GridC
             final File prjFile = new File(base.toString());
             if (prjFile.exists()) {
                 // it exists then we have top read it
-                PrjFileReader projReader = null;
-
                 try (FileInputStream instream = new FileInputStream(prjFile);
-                        FileChannel channel = instream.getChannel()) {
-                    projReader = new PrjFileReader(channel);
+                        FileChannel channel = instream.getChannel();
+                        PrjFileReader projReader = new PrjFileReader(channel)) {
                     crs = projReader.getCoordinateReferenceSystem();
                 } catch (FactoryException | IOException e) {
                     // warn about the error but proceed, it is not fatal
                     // we have at least the default crs to use
                     LOGGER.log(Level.INFO, e.getLocalizedMessage(), e);
-                } finally {
-                    if (projReader != null)
-                        try {
-                            projReader.close();
-                        } catch (IOException e) {
-                            // warn about the error but proceed, it is not fatal
-                            // we have at least the default crs to use
-                            LOGGER.log(Level.FINE, e.getLocalizedMessage(), e);
-                        }
                 }
             }
         }
@@ -1105,5 +1158,11 @@ public class GeoTiffReader extends AbstractGridCoverage2DReader implements GridC
                     layout.getExternalMasks());
         }
         return Collections.singletonList(new FileGroup(file, files, null));
+    }
+
+    /** Returns the {@link MaskOverviewProvider} used by this reader. For testing purposes. */
+    public MaskOverviewProvider getMaskOverviewProvider() {
+        // the object is read only once initialized, not dangerous
+        return maskOvrProvider;
     }
 }

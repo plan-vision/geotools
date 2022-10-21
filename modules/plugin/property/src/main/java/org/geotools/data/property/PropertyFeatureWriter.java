@@ -178,7 +178,7 @@ public class PropertyFeatureWriter implements FeatureWriter<SimpleFeatureType, S
                 delegate.next(); // grab next line
 
                 fid = delegate.fid;
-                Object values[] = new Object[type.getAttributeCount()];
+                Object[] values = new Object[type.getAttributeCount()];
                 for (int i = 0; i < type.getAttributeCount(); i++) {
                     values[i] = delegate.read(i);
                 }
@@ -188,7 +188,7 @@ public class PropertyFeatureWriter implements FeatureWriter<SimpleFeatureType, S
                 return live;
             } else {
                 fid = type.getTypeName() + "." + System.currentTimeMillis();
-                Object values[] = DataUtilities.defaultValues(type);
+                Object[] values = DataUtilities.defaultValues(type);
 
                 origional = null;
                 live = SimpleFeatureBuilder.build(type, values, fid);
@@ -268,22 +268,16 @@ public class PropertyFeatureWriter implements FeatureWriter<SimpleFeatureType, S
         read.delete();
 
         if (write.exists() && !write.renameTo(read)) {
-            FileOutputStream outStream = new FileOutputStream(read);
-            FileInputStream inStream = new FileInputStream(write);
-            FileChannel out = outStream.getChannel();
-            FileChannel in = inStream.getChannel();
-            try {
+            try (FileOutputStream outStream = new FileOutputStream(read);
+                    FileInputStream inStream = new FileInputStream(write);
+                    FileChannel out = outStream.getChannel();
+                    FileChannel in = inStream.getChannel()) {
                 long len = in.size();
                 long copied = out.transferFrom(in, 0, in.size());
 
                 if (len != copied) {
                     throw new IOException("unable to complete write");
                 }
-            } finally {
-                in.close();
-                out.close();
-                inStream.close();
-                outStream.close();
             }
         }
         read = null;

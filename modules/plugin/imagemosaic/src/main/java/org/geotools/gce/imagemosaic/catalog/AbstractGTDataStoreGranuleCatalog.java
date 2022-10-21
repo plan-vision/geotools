@@ -22,13 +22,11 @@ import java.net.MalformedURLException;
 import java.util.Collection;
 import java.util.HashSet;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Properties;
 import java.util.Set;
 import java.util.logging.Level;
 import java.util.logging.Logger;
-import javax.imageio.spi.ImageInputStreamSpi;
-import javax.imageio.spi.ImageReaderSpi;
-import org.geotools.coverage.grid.io.AbstractGridFormat;
 import org.geotools.coverage.grid.io.footprint.MultiLevelROI;
 import org.geotools.data.DataStore;
 import org.geotools.data.DataStoreFactorySpi;
@@ -48,7 +46,6 @@ import org.geotools.feature.SchemaException;
 import org.geotools.feature.visitor.FeatureCalc;
 import org.geotools.gce.imagemosaic.GranuleDescriptor;
 import org.geotools.gce.imagemosaic.ImageMosaicReader;
-import org.geotools.gce.imagemosaic.PathType;
 import org.geotools.gce.imagemosaic.Utils;
 import org.geotools.util.Utilities;
 import org.geotools.util.factory.GeoTools;
@@ -87,24 +84,9 @@ abstract class AbstractGTDataStoreGranuleCatalog extends GranuleCatalog {
 
     static final FilterFactory2 ff =
             CommonFactoryFinder.getFilterFactory2(GeoTools.getDefaultHints());
+    protected final String parentLocation;
 
     private Throwable tracer;
-
-    private String geometryPropertyName;
-
-    PathType pathType;
-
-    String locationAttribute;
-
-    ImageReaderSpi suggestedRasterSPI;
-
-    AbstractGridFormat suggestedFormat;
-
-    ImageInputStreamSpi suggestedIsSPI;
-
-    String parentLocation;
-
-    boolean heterogeneous;
 
     boolean wrapstore = false;
 
@@ -114,43 +96,19 @@ abstract class AbstractGTDataStoreGranuleCatalog extends GranuleCatalog {
 
     public AbstractGTDataStoreGranuleCatalog(
             final Properties params,
+            final CatalogConfigurationBeans configurations,
             final boolean create,
             final DataStoreFactorySpi spi,
             final Hints hints) {
-        super(hints);
+        super(hints, configurations);
         Utilities.ensureNonNull("params", params);
         this.spi = spi;
         this.params = params;
 
         try {
-            this.pathType = (PathType) params.get(Utils.Prop.PATH_TYPE);
-            this.locationAttribute = (String) params.get(Utils.Prop.LOCATION_ATTRIBUTE);
-            final String temp = (String) params.get(Utils.Prop.SUGGESTED_SPI);
-            this.suggestedRasterSPI =
-                    temp != null
-                            ? (ImageReaderSpi)
-                                    Class.forName(temp).getDeclaredConstructor().newInstance()
-                            : null;
-            final String temp2 = (String) params.get(Utils.Prop.SUGGESTED_FORMAT);
-            this.suggestedFormat =
-                    temp2 != null
-                            ? (AbstractGridFormat)
-                                    Class.forName(temp2).getDeclaredConstructor().newInstance()
-                            : null;
-            final String temp3 = (String) params.get(Utils.Prop.SUGGESTED_IS_SPI);
-            this.suggestedIsSPI =
-                    temp3 != null
-                            ? (ImageInputStreamSpi)
-                                    Class.forName(temp3).getDeclaredConstructor().newInstance()
-                            : null;
             this.parentLocation = (String) params.get(Utils.Prop.PARENT_LOCATION);
-            if (params.containsKey(Utils.Prop.HETEROGENEOUS)) {
-                this.heterogeneous = (Boolean) params.get(Utils.Prop.HETEROGENEOUS);
-            }
-            if (params.containsKey(Utils.Prop.WRAP_STORE)) {
-                this.wrapstore = (Boolean) params.get(Utils.Prop.WRAP_STORE);
-            }
-
+            // assumes this one does not change by configuration
+            this.wrapstore = configurations.first().isWrapStore();
             initTileIndexStore(params, create, spi);
         } catch (Throwable e) {
             handleInitializationException(e);
@@ -164,27 +122,17 @@ abstract class AbstractGTDataStoreGranuleCatalog extends GranuleCatalog {
 
     protected void initializeTypeNames(final Properties params) throws IOException {
         String typeName = null;
-        boolean scanForTypeNames = false;
-
         if (params.containsKey(Utils.Prop.TYPENAME)) {
             typeName = (String) params.get(Utils.Prop.TYPENAME);
         }
 
-        if (params.containsKey(Utils.SCAN_FOR_TYPENAMES)) {
-            scanForTypeNames = Boolean.valueOf(params.get(Utils.SCAN_FOR_TYPENAMES).toString());
-        }
-
-        // if this is not a new store let's extract basic properties from it
-        if (scanForTypeNames) {
-            String[] typeNames = getTileIndexStore().getTypeNames();
-            if (typeNames != null) {
-                for (String tn : typeNames) {
-                    this.getValidTypeNames().add(tn);
-                }
-            }
-        } else if (typeName != null) {
+        if (typeName != null) {
             checkMosaicSchema(typeName);
             addTypeName(typeName, false);
+        } else if (!configurations.getTypeNames().isEmpty()) {
+            for (String tn : configurations.getTypeNames()) {
+                if (isValidMosaicSchema(tn)) getValidTypeNames().add(tn);
+            }
         } else {
             // pick the first suitable type name
             String[] typeNames = getTileIndexStore().getTypeNames();
@@ -201,10 +149,7 @@ abstract class AbstractGTDataStoreGranuleCatalog extends GranuleCatalog {
         // if we got here and there is not typename in the list, we could not find one
         if (this.getValidTypeNames().size() == 0) {
             throw new IllegalArgumentException(
-                    "Could not find a suitable mosaic type "
-                            + "(with a footprint and a location attribute named "
-                            + getLocationAttributeName()
-                            + " in the store");
+                    "Could not find a suitable mosaic type in the store");
         }
 
         if (this.getValidTypeNames().size() > 0) {
@@ -242,15 +187,13 @@ abstract class AbstractGTDataStoreGranuleCatalog extends GranuleCatalog {
     private boolean isValidMosaicSchema(String typeName) throws IOException {
         SimpleFeatureType schema = getTileIndexStore().getSchema(typeName);
 
-        return Utils.isValidMosaicSchema(schema, getLocationAttributeName());
+        return Utils.isValidMosaicSchema(schema, getLocationAttributeName(typeName));
     }
 
-    private String getLocationAttributeName() {
-        if (locationAttribute == null) {
-            return "location";
-        } else {
-            return locationAttribute;
-        }
+    private String getLocationAttributeName(String typeName) {
+        return Optional.ofNullable(configurations.getByTypeName(typeName))
+                .map(c -> c.getLocationAttribute())
+                .orElse(Utils.DEFAULT_LOCATION_ATTRIBUTE);
     }
 
     /** Checks the provided schema, and throws an exception if not valid */
@@ -265,7 +208,8 @@ abstract class AbstractGTDataStoreGranuleCatalog extends GranuleCatalog {
 
     /** Checks the provided schema, and throws an exception if not valid */
     private void checkMosaicSchema(SimpleFeatureType schema) {
-        if (!Utils.isValidMosaicSchema(schema, getLocationAttributeName())) {
+        String locationAttribute = getLocationAttributeName(schema.getTypeName());
+        if (!Utils.isValidMosaicSchema(schema, locationAttribute)) {
             throw new IllegalArgumentException(
                     "Invalid mosaic schema "
                             + schema
@@ -339,7 +283,7 @@ abstract class AbstractGTDataStoreGranuleCatalog extends GranuleCatalog {
 
         final FeatureType schema = featureSource.getSchema();
         if (schema != null && schema.getGeometryDescriptor() != null) {
-            geometryPropertyName = schema.getGeometryDescriptor().getLocalName();
+            String geometryPropertyName = schema.getGeometryDescriptor().getLocalName();
             if (LOGGER.isLoggable(Level.FINE))
                 LOGGER.fine(
                         "BBOXFilterExtractor::extractBasicProperties(): geometryPropertyName is set to \'"
@@ -378,6 +322,7 @@ abstract class AbstractGTDataStoreGranuleCatalog extends GranuleCatalog {
     }
 
     @Override
+    @SuppressWarnings("PMD.UseTryWithResources") // transaction is not necessarily created here
     public int removeGranules(Query query, Transaction transaction) {
         Utilities.ensureNonNull("query", query);
         query = mergeHints(query);
@@ -475,6 +420,7 @@ abstract class AbstractGTDataStoreGranuleCatalog extends GranuleCatalog {
         if (LOGGER.isLoggable(Level.FINE)) LOGGER.fine("Index Loaded");
 
         // visiting the features from the underlying store, caring for early bail out
+        CatalogConfigurationBean configuration = configurations.getByTypeQuery(query);
         try (SimpleFeatureIterator fi = features.features()) {
             while (fi.hasNext() && !visitor.isVisitComplete()) {
                 final SimpleFeature sf = fi.next();
@@ -484,14 +430,14 @@ abstract class AbstractGTDataStoreGranuleCatalog extends GranuleCatalog {
                         final GranuleDescriptor granule =
                                 new GranuleDescriptor(
                                         sf,
-                                        suggestedFormat,
-                                        suggestedRasterSPI,
-                                        suggestedIsSPI,
-                                        pathType,
-                                        locationAttribute,
+                                        configuration.suggestedFormat(),
+                                        configuration.suggestedSPI(),
+                                        configuration.suggestedIsSPI(),
+                                        configuration.getPathType(),
+                                        configuration.getLocationAttribute(),
                                         parentLocation,
                                         footprint,
-                                        heterogeneous,
+                                        configuration.isHeterogeneous(),
                                         q.getHints());
 
                         visitor.visit(granule, sf);
@@ -763,4 +709,14 @@ abstract class AbstractGTDataStoreGranuleCatalog extends GranuleCatalog {
      * allowed to modify it)
      */
     protected abstract Set<String> getValidTypeNames();
+
+    @Override
+    protected CatalogConfigurationBeans getConfigurations() {
+        return configurations;
+    }
+
+    @Override
+    protected String getParentLocation() {
+        return parentLocation;
+    }
 }

@@ -16,12 +16,17 @@
  */
 package org.geotools.data.postgis;
 
+import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertTrue;
+
 import org.geotools.data.Query;
 import org.geotools.factory.CommonFactoryFinder;
 import org.geotools.geometry.jts.ReferencedEnvelope;
 import org.geotools.jdbc.JDBCFeatureSourceOnlineTest;
 import org.geotools.jdbc.JDBCTestSetup;
 import org.geotools.referencing.CRS;
+import org.geotools.referencing.CRS.AxisOrder;
+import org.junit.Test;
 import org.locationtech.jts.geom.Coordinate;
 import org.locationtech.jts.geom.GeometryFactory;
 import org.opengis.feature.simple.SimpleFeatureType;
@@ -33,6 +38,10 @@ import org.opengis.filter.spatial.Intersects;
 
 public class PostGISFeatureSourceOnlineTest extends JDBCFeatureSourceOnlineTest {
 
+    public PostGISFeatureSourceOnlineTest() {
+        this.forceLongitudeFirst = true;
+    }
+
     @Override
     protected JDBCTestSetup createTestSetup() {
         return new PostGISTestSetup();
@@ -43,6 +52,7 @@ public class PostGISFeatureSourceOnlineTest extends JDBCFeatureSourceOnlineTest 
         super.setUpInternal();
     }
 
+    @Test
     public void testBBOXOverlapsEncoding() throws Exception {
         // enable bbox envelope encoding
         ((PostGISDialect) dataStore.getSQLDialect()).setEncodeBBOXFilterAsEnvelope(true);
@@ -72,9 +82,10 @@ public class PostGISFeatureSourceOnlineTest extends JDBCFeatureSourceOnlineTest 
         assertEquals(2l, Math.round(bounds.getMaxX()));
         assertEquals(2l, Math.round(bounds.getMaxY()));
 
-        assertTrue(areCRSEqual(CRS.decode("EPSG:4326"), bounds.getCoordinateReferenceSystem()));
+        assertTrue(areCRSEqual(decodeEPSG(4326), bounds.getCoordinateReferenceSystem()));
     }
 
+    @Test
     public void testEstimatedBounds() throws Exception {
         // enable fast bbox
         ((PostGISDialect) dataStore.getSQLDialect()).setEstimatedExtentsEnabled(true);
@@ -85,9 +96,10 @@ public class PostGISFeatureSourceOnlineTest extends JDBCFeatureSourceOnlineTest 
         assertEquals(2l, Math.round(bounds.getMaxX()));
         assertEquals(2l, Math.round(bounds.getMaxY()));
 
-        assertTrue(areCRSEqual(CRS.decode("EPSG:4326"), bounds.getCoordinateReferenceSystem()));
+        assertTrue(areCRSEqual(decodeEPSG(4326), bounds.getCoordinateReferenceSystem()));
     }
 
+    @Test
     public void testEstimatedBoundsWithQuery() throws Exception {
         // enable fast bbox
         ((PostGISDialect) dataStore.getSQLDialect()).setEstimatedExtentsEnabled(true);
@@ -105,12 +117,34 @@ public class PostGISFeatureSourceOnlineTest extends JDBCFeatureSourceOnlineTest 
         assertEquals(1l, Math.round(bounds.getMaxX()));
         assertEquals(1l, Math.round(bounds.getMaxY()));
 
-        assertTrue(areCRSEqual(CRS.decode("EPSG:4326"), bounds.getCoordinateReferenceSystem()));
+        assertTrue(areCRSEqual(decodeEPSG(4326), bounds.getCoordinateReferenceSystem()));
     }
 
+    @Test
+    public void testEstimatedBoundsWithLimit() throws Exception {
+        ((PostGISDialect) dataStore.getSQLDialect()).setEstimatedExtentsEnabled(true);
+        super.testBoundsWithLimit();
+    }
+
+    @Test
+    public void testEstimatedBoundsWithOffset() throws Exception {
+        ((PostGISDialect) dataStore.getSQLDialect()).setEstimatedExtentsEnabled(true);
+        super.testBoundsWithOffset();
+    }
+
+    @Test
     public void testSridFirstGeometry() throws Exception {
         SimpleFeatureType schema = dataStore.getSchema(tname("ft3"));
         GeometryDescriptor gd = schema.getGeometryDescriptor();
-        assertTrue(areCRSEqual(CRS.decode("EPSG:4326"), gd.getCoordinateReferenceSystem()));
+        assertTrue(areCRSEqual(decodeEPSG(4326), gd.getCoordinateReferenceSystem()));
+    }
+
+    @Test
+    public void testCrsIsLongitudeFirst() throws Exception {
+        SimpleFeatureType schema = dataStore.getSchema(tname("ft3"));
+        GeometryDescriptor gd = schema.getGeometryDescriptor();
+        assertTrue(areCRSEqual(decodeEPSG(4326), gd.getCoordinateReferenceSystem()));
+        // an explicit check to ensure we have a longitude first (XY) axis order.
+        assertEquals(AxisOrder.EAST_NORTH, CRS.getAxisOrder(gd.getCoordinateReferenceSystem()));
     }
 }

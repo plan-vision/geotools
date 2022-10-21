@@ -59,6 +59,7 @@ import java.util.Collections;
 import java.util.List;
 import java.util.logging.Logger;
 import org.easymock.EasyMock;
+import org.geotools.filter.function.EnvFunction;
 import org.geotools.filter.function.RecodeFunction;
 import org.geotools.filter.function.string.ConcatenateFunction;
 import org.geotools.process.function.ProcessFunction;
@@ -67,6 +68,7 @@ import org.geotools.styling.ExternalGraphic;
 import org.geotools.styling.FeatureTypeStyle;
 import org.geotools.styling.LabelPlacement;
 import org.geotools.styling.LineSymbolizer;
+import org.geotools.styling.NamedLayer;
 import org.geotools.styling.PointSymbolizer;
 import org.geotools.styling.PolygonSymbolizer;
 import org.geotools.styling.ResourceLocator;
@@ -77,6 +79,7 @@ import org.geotools.styling.StyledLayerDescriptor;
 import org.geotools.styling.TextSymbolizer;
 import org.geotools.styling.TextSymbolizer2;
 import org.geotools.styling.UomOgcMapping;
+import org.geotools.styling.UserLayer;
 import org.geotools.util.logging.Logging;
 import org.geotools.ysld.Ysld;
 import org.geotools.ysld.YsldTests;
@@ -108,6 +111,33 @@ import org.yaml.snakeyaml.constructor.ConstructorException;
 @SuppressWarnings("unchecked") // unchecked generics array creation due to Hamcrest
 public class YsldParseTest {
     Logger LOG = Logging.getLogger("org.geotools.ysld.Ysld");
+
+    @Test
+    public void testRoot() throws Exception {
+        StyledLayerDescriptor sld = Ysld.parse("layer-name: MyLayer\nname: MyStyle");
+        NamedLayer namedLayer = (NamedLayer) sld.layers().get(0);
+        assertEquals("MyLayer", namedLayer.getName());
+        assertEquals("MyStyle", namedLayer.styles().get(0).getName());
+
+        sld =
+                Ysld.parse(
+                        "sld-name: SLDName\nsld-title: SLD Title\nsld-abstract: Remote user layer\n"
+                                + "user-name: RemoteLayer\nuser-remote: http://localhost:8080/geoserver/wms\nuser-service: wms\n"
+                                + "name: RemoteStyle");
+
+        assertEquals("SLDName", sld.getName());
+        assertEquals("SLD Title", sld.getTitle());
+        assertEquals("Remote user layer", sld.getAbstract());
+
+        UserLayer userlayer = (UserLayer) sld.layers().get(0);
+        assertEquals("RemoteLayer", userlayer.getName());
+        assertEquals("wms", userlayer.getRemoteOWS().getService());
+        assertEquals(
+                "http://localhost:8080/geoserver/wms",
+                userlayer.getRemoteOWS().getOnlineResource());
+
+        assertEquals("RemoteStyle", userlayer.userStyles().get(0).getName());
+    }
 
     @Test
     public void testAnchor() throws Exception {
@@ -219,7 +249,7 @@ public class YsldParseTest {
                                 rtParam("levels", literal(1000), literal(1100), literal(1200)))));
     }
 
-    @SuppressWarnings({"unchecked", "rawtypes"})
+    @SuppressWarnings("unchecked")
     Matcher<Function> rtParam(final String name, final Matcher<?>... values) {
         return new BaseMatcher() {
 
@@ -1031,9 +1061,8 @@ public class YsldParseTest {
         doTestForGoogleMercator(sld);
     }
 
-    @SuppressWarnings("unchecked")
     private void doTestForGoogleMercator(StyledLayerDescriptor sld) throws IOException {
-        double scaleDenominators[] = new double[GOOGLE_MERCATOR_PIXEL_SIZES.length];
+        double[] scaleDenominators = new double[GOOGLE_MERCATOR_PIXEL_SIZES.length];
         for (int i = 0; i < GOOGLE_MERCATOR_PIXEL_SIZES.length; i++) {
             scaleDenominators[i] = OGC_DPI * INCHES_PER_METRE * GOOGLE_MERCATOR_PIXEL_SIZES[i];
         }
@@ -1099,7 +1128,6 @@ public class YsldParseTest {
         }
     }
 
-    @SuppressWarnings("unchecked")
     private void doTestForWGS84(StyledLayerDescriptor sld) throws IOException {
         FeatureTypeStyle fs = SLD.defaultStyle(sld).featureTypeStyles().get(0);
 
@@ -1366,7 +1394,6 @@ public class YsldParseTest {
         assertThat(colour3, is(Color.BLUE));
     }
 
-    @SuppressWarnings("unchecked")
     @Test
     public void testLabelLiteral() throws Exception {
         String yaml = "text: \n" + "  label: test literal\n" + "";
@@ -1410,7 +1437,6 @@ public class YsldParseTest {
         assertThat(label, attribute("testAttribute"));
     }
 
-    @SuppressWarnings("unchecked")
     @Test
     public void testExpressionLiteral() throws Exception {
         String yaml = "text: \n" + "  geometry: test literal\n" + "";
@@ -1742,7 +1768,7 @@ public class YsldParseTest {
                 equalTo(ContrastMethod.NORMALIZE));
     }
 
-    @SuppressWarnings({"rawtypes", "unchecked"})
+    @SuppressWarnings("unchecked")
     static Matcher<ContrastEnhancement> nullContrast() {
         return (Matcher)
                 describedAs(
@@ -1815,6 +1841,28 @@ public class YsldParseTest {
     }
 
     @Test
+    public void testBandSelectionExpression() throws Exception {
+        String yaml =
+                "feature-styles:\n"
+                        + "- rules:\n"
+                        + "  - symbolizers:\n"
+                        + "    - raster:\n"
+                        + "        channels:\n"
+                        + "          gray:\n"
+                        + "            name: ${env('B1','1')}";
+        StyledLayerDescriptor sld = Ysld.parse(yaml);
+        RasterSymbolizer raster = SLD.rasterSymbolizer(SLD.defaultStyle(sld));
+        Expression name = raster.getChannelSelection().getGrayChannel().getChannelName();
+        assertEquals("1", name.evaluate(null, String.class));
+        try {
+            EnvFunction.setLocalValue("B1", "2");
+            assertEquals("2", name.evaluate(null, String.class));
+        } finally {
+            EnvFunction.clearLocalValues();
+        }
+    }
+
+    @Test
     public void testMarkOpacity() throws Exception {
         String yaml =
                 "point: \n"
@@ -1846,7 +1894,6 @@ public class YsldParseTest {
         // SLD/SE 1.1 feature that may not be supported by renderer
     }
 
-    @SuppressWarnings("unchecked")
     @Test
     public void testPointDisplacement() throws Exception {
         String yaml =
@@ -1869,7 +1916,6 @@ public class YsldParseTest {
         // SLD/SE 1.1 feature that may not be supported by renderer
     }
 
-    @SuppressWarnings("unchecked")
     @Test
     public void testPointAnchor() throws Exception {
         String yaml =
@@ -1892,7 +1938,6 @@ public class YsldParseTest {
         // SLD/SE 1.1 feature that may not be supported by renderer
     }
 
-    @SuppressWarnings("unchecked")
     @Test
     public void testTextDisplacement() throws Exception {
         String yaml = "text: \n" + "  displacement: " + tuple(10, 42) + "\n";
@@ -1907,7 +1952,6 @@ public class YsldParseTest {
                         hasProperty("displacementY", literal(42))));
     }
 
-    @SuppressWarnings("unchecked")
     @Test
     public void testTextAnchor() throws Exception {
         String yaml = "text: \n" + "  anchor: " + tuple(0.75, 0.25) + "\n";
@@ -1933,7 +1977,6 @@ public class YsldParseTest {
         assertThat(((LinePlacement) t.getLabelPlacement()).getPerpendicularOffset(), literal(4));
     }
 
-    @SuppressWarnings("unchecked")
     @Test
     public void testTextGraphicDisplacement() throws Exception {
         String yaml =
@@ -1967,7 +2010,6 @@ public class YsldParseTest {
                         hasProperty("displacementY", literal(64))));
     }
 
-    @SuppressWarnings("unchecked")
     @Test
     public void testRelativeExternalGraphicNoResolver() throws Exception {
         String yaml =
@@ -2129,7 +2171,6 @@ public class YsldParseTest {
         assertThat(p, hasProperty("options", hasEntry("composite-base", "true")));
     }
 
-    @SuppressWarnings({"unchecked", "rawtypes"})
     @Test
     public void testStrokeGraphic() throws Exception {
 
@@ -2161,7 +2202,6 @@ public class YsldParseTest {
                                         hasProperty("color", literal(isColor("995555")))))));
     }
 
-    @SuppressWarnings({"unchecked", "rawtypes"})
     @Test
     public void testStrokeGraphicFill() throws Exception {
 
@@ -2301,5 +2341,13 @@ public class YsldParseTest {
         } catch (ConstructorException e) {
             assertThat(e.getMessage(), containsString("could not determine a constructor"));
         }
+    }
+
+    @Test
+    public void testRuleVendorOption() throws Exception {
+        String yaml = "feature-styles:\n" + "- rules:\n" + "  - x-foo: bar";
+        StyledLayerDescriptor sld = Ysld.parse(yaml);
+        Rule rule = SLD.rules(SLD.defaultStyle(sld))[0];
+        assertThat(rule.getOptions(), hasEntry("foo", "bar"));
     }
 }

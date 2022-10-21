@@ -125,7 +125,6 @@ import org.opengis.util.InternationalString;
  * @author Stefan Alfons Krueger (alfonx), Wikisquare.de : Support for
  *     jar:file:foo.jar/bar.properties URLs
  */
-@SuppressWarnings("rawtypes")
 public class RasterLayerResponse {
 
     private final SubmosaicProducerFactory submosaicProducerFactory;
@@ -599,9 +598,6 @@ public class RasterLayerResponse {
             return;
         }
 
-        // add extra parameters to image parameters reader
-        baseReadParameters.setBands(request.getBands());
-
         // assemble granules
         final MosaicOutput mosaic = prepareResponse();
         if (mosaic == null || mosaic.image == null) {
@@ -654,6 +650,9 @@ public class RasterLayerResponse {
 
             // === init raster bounds
             initRasterBounds();
+
+            // === inits the native band selection
+            initBands();
 
             // === init excess granule removal if needed
             initExcessGranuleRemover();
@@ -726,6 +725,7 @@ public class RasterLayerResponse {
                                                 .getName()),
                                 bboxExtractor.getBBox()));
                 query.setMaxFeatures(1);
+                query.setSortBy(null);
                 rasterManager.getGranuleDescriptors(query, dryRunVisitor);
                 if (dryRunVisitor.granulesNumber > 0) {
                     LOGGER.fine(
@@ -757,6 +757,12 @@ public class RasterLayerResponse {
         } catch (Exception e) {
             throw new DataSourceException("Unable to create this mosaic", e);
         }
+    }
+
+    /** Sets up native band selection */
+    private void initBands() {
+        // add extra parameters to image parameters reader
+        baseReadParameters.setBands(request.getBands());
     }
 
     private void initExcessGranuleRemover() {
@@ -1421,6 +1427,7 @@ public class RasterLayerResponse {
         RasterManager originalRasterManager = originalRequest.getRasterManager();
         RasterManager manager =
                 originalRasterManager.getForGranuleCRS(
+                        request,
                         templateDescriptor,
                         this.mosaicBBox,
                         originalRequest.spatialRequestHelper.isSupportingAlternativeCRSOutput()
@@ -1444,9 +1451,9 @@ public class RasterLayerResponse {
                             String crsAttribute = manager.getCrsAttribute();
                             String granuleCRSCode =
                                     (String)
-                                            templateDescriptor
-                                                    .getOriginator()
-                                                    .getAttribute(crsAttribute);
+                                            Utils.getAttribute(
+                                                    templateDescriptor.getOriginator(),
+                                                    crsAttribute);
                             FilterFactory2 ff = FeatureUtilities.DEFAULT_FILTER_FACTORY;
                             PropertyIsEqualTo crsFilter =
                                     ff.equal(
@@ -1494,6 +1501,7 @@ public class RasterLayerResponse {
         response.initBBOX();
         response.initTransformations();
         response.initRasterBounds();
+        response.initBands();
 
         return response;
     }

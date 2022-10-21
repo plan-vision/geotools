@@ -38,8 +38,6 @@ import java.util.List;
 import java.util.Properties;
 import java.util.Set;
 import java.util.TimeZone;
-import java.util.logging.Level;
-import java.util.logging.Logger;
 import org.apache.commons.io.FileUtils;
 import org.geotools.coverage.grid.GridEnvelope2D;
 import org.geotools.coverage.grid.GridGeometry2D;
@@ -54,7 +52,6 @@ import org.geotools.test.OnlineTestCase;
 import org.geotools.test.TestData;
 import org.geotools.util.NumberRange;
 import org.geotools.util.factory.Hints;
-import org.geotools.util.logging.Logging;
 import org.junit.Test;
 import org.opengis.feature.simple.SimpleFeature;
 import org.opengis.feature.simple.SimpleFeatureType;
@@ -65,9 +62,6 @@ import org.opengis.parameter.ParameterValue;
 
 /** Testing using a SQLServer database for storing the index for the ImageMosaic */
 public class ImageMosaicSQLServerIndexOnlineTest extends OnlineTestCase {
-
-    private static final Logger LOGGER =
-            Logging.getLogger(ImageMosaicSQLServerIndexOnlineTest.class);
 
     static final String tempFolderNoEpsg = "rgbNoEpsg";
 
@@ -349,15 +343,14 @@ public class ImageMosaicSQLServerIndexOnlineTest extends OnlineTestCase {
                 query.setMaxFeatures(1);
 
                 // sorting
-                final SortBy[] clauses =
-                        new SortBy[] {
-                            new SortByImpl(
-                                    FeatureUtilities.DEFAULT_FILTER_FACTORY.property("ingestion"),
-                                    SortOrder.DESCENDING),
-                            new SortByImpl(
-                                    FeatureUtilities.DEFAULT_FILTER_FACTORY.property("elevation"),
-                                    SortOrder.ASCENDING),
-                        };
+                final SortBy[] clauses = {
+                    new SortByImpl(
+                            FeatureUtilities.DEFAULT_FILTER_FACTORY.property("ingestion"),
+                            SortOrder.DESCENDING),
+                    new SortByImpl(
+                            FeatureUtilities.DEFAULT_FILTER_FACTORY.property("elevation"),
+                            SortOrder.ASCENDING),
+                };
                 query.setSortBy(clauses);
             }
 
@@ -378,15 +371,14 @@ public class ImageMosaicSQLServerIndexOnlineTest extends OnlineTestCase {
             assertEquals(((Integer) elevation).intValue(), 0);
 
             // Reverting order (the previous timestamp shouldn't match anymore)
-            final SortBy[] clauses =
-                    new SortBy[] {
-                        new SortByImpl(
-                                FeatureUtilities.DEFAULT_FILTER_FACTORY.property("ingestion"),
-                                SortOrder.ASCENDING),
-                        new SortByImpl(
-                                FeatureUtilities.DEFAULT_FILTER_FACTORY.property("elevation"),
-                                SortOrder.DESCENDING),
-                    };
+            final SortBy[] clauses = {
+                new SortByImpl(
+                        FeatureUtilities.DEFAULT_FILTER_FACTORY.property("ingestion"),
+                        SortOrder.ASCENDING),
+                new SortByImpl(
+                        FeatureUtilities.DEFAULT_FILTER_FACTORY.property("elevation"),
+                        SortOrder.DESCENDING),
+            };
             query.setSortBy(clauses);
 
             // checking that we get a single feature and that feature is correct
@@ -422,22 +414,19 @@ public class ImageMosaicSQLServerIndexOnlineTest extends OnlineTestCase {
 
     private void dropTables(String[] tables, String database) throws Exception {
         // delete tables
-        Connection connection = null;
-        Statement st = null;
-        try {
-            connection =
-                    DriverManager.getConnection(
-                            "jdbc:sqlserver://"
-                                    + fixture.getProperty("host")
-                                    + ":"
-                                    + fixture.getProperty("port")
-                                    + ";databaseName="
-                                    + (database != null
-                                            ? database
-                                            : fixture.getProperty("database")),
-                            fixture.getProperty("user"),
-                            fixture.getProperty("passwd"));
-            st = connection.createStatement();
+        try (Connection connection =
+                        DriverManager.getConnection(
+                                "jdbc:sqlserver://"
+                                        + fixture.getProperty("host")
+                                        + ":"
+                                        + fixture.getProperty("port")
+                                        + ";databaseName="
+                                        + (database != null
+                                                ? database
+                                                : fixture.getProperty("database")),
+                                fixture.getProperty("user"),
+                                fixture.getProperty("passwd"));
+                Statement st = connection.createStatement()) {
             for (String table : tables) {
                 StringBuilder sb = new StringBuilder("DROP TABLE IF EXISTS ");
                 String schema = fixture.getProperty("schema");
@@ -445,28 +434,10 @@ public class ImageMosaicSQLServerIndexOnlineTest extends OnlineTestCase {
                 sb.append(table);
                 st.execute(sb.toString());
             }
-        } finally {
-
-            if (st != null) {
-                try {
-                    st.close();
-                } catch (Exception e) {
-                    LOGGER.log(Level.SEVERE, e.getLocalizedMessage(), e);
-                }
-            }
-
-            if (connection != null) {
-                try {
-                    connection.close();
-                } catch (Exception e) {
-                    LOGGER.log(Level.SEVERE, e.getLocalizedMessage(), e);
-                }
-            }
         }
     }
 
     /** Complex test for SQLServer store wrapping. */
-    @SuppressWarnings({"unchecked", "rawtypes"})
     @Test
     public void testSQLServerWrapping() throws Exception {
         ImageMosaicReader reader = null;

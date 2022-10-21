@@ -434,7 +434,7 @@ final class ECQLFilterBuilder extends AbstractFilterBuilder {
         // validates that the pattern has only the characters T,F,*,0,1,2
         String patternUC = pattern.toUpperCase();
 
-        char[] validFlags = new char[] {'T', 'F', '*', '0', '1', '2'};
+        char[] validFlags = {'T', 'F', '*', '0', '1', '2'};
         for (int i = 0; i < validFlags.length; i++) {
             char character = patternUC.charAt(i);
 
@@ -527,5 +527,20 @@ final class ECQLFilterBuilder extends AbstractFilterBuilder {
         BBOX filter = builder.buildBBoxWithCRS();
 
         return filter;
+    }
+
+    @Override
+    public Literal buildEnvelope(IToken token) throws CQLException {
+        Literal result = super.buildEnvelope(token);
+
+        // unlike CQL, in ECQL the numbers are tokens loaded on the stack, they need to be
+        // removed
+        BuildResultStack stack = getResultStack();
+        stack.popResult();
+        stack.popResult();
+        stack.popResult();
+        stack.popResult();
+
+        return result;
     }
 }

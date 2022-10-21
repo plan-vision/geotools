@@ -44,7 +44,7 @@ DataStore plugins:
    oracle
    postgis
    sqlserver
-   teradata
+   informix
    ../data/geopackage
 
 Unsupported plugins:
@@ -52,4 +52,4 @@ Unsupported plugins:
 .. toctree::
    :maxdepth: 1
    
-   ingres
+   teradata

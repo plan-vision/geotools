@@ -20,6 +20,7 @@ package org.geotools.data.complex;
 import static org.geotools.data.complex.util.ComplexFeatureConstants.DEFAULT_GEOMETRY_LOCAL_NAME;
 
 import java.io.IOException;
+import java.net.URL;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.HashSet;
@@ -30,6 +31,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
 import java.util.Set;
+import java.util.logging.Level;
 import java.util.logging.Logger;
 import org.geotools.appschema.jdbc.JoiningJDBCFeatureSource;
 import org.geotools.data.DataAccess;
@@ -38,18 +40,16 @@ import org.geotools.data.DataStore;
 import org.geotools.data.FeatureSource;
 import org.geotools.data.Query;
 import org.geotools.data.ServiceInfo;
+import org.geotools.data.complex.config.AppSchemaDataAccessConfigurator;
 import org.geotools.data.complex.config.NonFeatureTypeProxy;
 import org.geotools.data.complex.feature.type.Types;
 import org.geotools.data.complex.filter.ComplexFilterSplitter;
-import org.geotools.data.complex.filter.FeatureChainedAttributeVisitor;
-import org.geotools.data.complex.filter.FeatureChainedAttributeVisitor.FeatureChainedAttributeDescriptor;
 import org.geotools.data.complex.filter.UnmappingFilterVisitor;
 import org.geotools.data.complex.filter.UnmappingFilterVisitorFactory;
 import org.geotools.data.complex.filter.XPath;
 import org.geotools.data.complex.spi.CustomSourceDataStore;
 import org.geotools.data.complex.util.XPathUtil.StepList;
 import org.geotools.data.joining.JoiningQuery;
-import org.geotools.data.store.ContentFeatureSource;
 import org.geotools.factory.CommonFactoryFinder;
 import org.geotools.feature.FeatureCollection;
 import org.geotools.feature.FeatureIterator;
@@ -103,6 +103,15 @@ public class AppSchemaDataAccess implements DataAccess<FeatureType, Feature> {
      * longer needed by any accessible data access.
      */
     boolean hidden = false;
+
+    /** URL of the data access */
+    URL url;
+
+    /**
+     * URL of data access that included this data access (for hidden data accesses). Should be null
+     * if hidden is false.
+     */
+    URL parentUrl;
 
     /**
      * Constructor.
@@ -278,7 +287,7 @@ public class AppSchemaDataAccess implements DataAccess<FeatureType, Feature> {
      *     expensive to calculate or any errors or occur.
      * @throws IOException if there are errors getting the count
      */
-    protected int getCount(final Query targetQuery) throws IOException {
+    protected int getCount(Query targetQuery) throws IOException {
 
         int count = 0;
 
@@ -287,38 +296,32 @@ public class AppSchemaDataAccess implements DataAccess<FeatureType, Feature> {
         Filter filter = targetQuery.getFilter();
         FilterAttributeExtractor extractor = new FilterAttributeExtractor();
         filter.accept(extractor, null);
-        Set<PropertyName> propertyNames = extractor.getPropertyNameSet();
         // Wrap with JoiningJDBCFeatureSource like in DataAccessMappingFeatureIterator
         // this is so it'd use the splitFilter in JoiningJDBCFeatureSource
         // otherwise you'll get an error when it can't find complex attributes in the
         // simple feature source
-        if (mappedSource instanceof JDBCFeatureSource) {
-            mappedSource = new JoiningJDBCFeatureSource((JDBCFeatureSource) mappedSource);
-        } else if (mappedSource instanceof JDBCFeatureStore) {
-            mappedSource = new JoiningJDBCFeatureSource((JDBCFeatureStore) mappedSource);
+        if (AppSchemaDataAccessConfigurator.isJoining()) {
+            if (mappedSource instanceof JDBCFeatureSource) {
+                mappedSource = new JoiningJDBCFeatureSource((JDBCFeatureSource) mappedSource);
+                targetQuery = new JoiningQuery(targetQuery);
+            } else if (mappedSource instanceof JDBCFeatureStore) {
+                mappedSource = new JoiningJDBCFeatureSource((JDBCFeatureStore) mappedSource);
+                targetQuery = new JoiningQuery(targetQuery);
+            }
         }
-        FeatureType featureType = mappedSource.getSchema();
         boolean canCount = canCount(targetQuery, mappedSource, mapping);
         if (canCount) {
-            if (!hasNestedProperties(featureType, propertyNames)) {
-                JoiningQuery joiningQuery = new JoiningQuery(targetQuery);
-                joiningQuery.setRootMapping(mapping);
-                count = mappedSource.getCount(joiningQuery);
-            } else if (mappedSource instanceof JoiningJDBCFeatureSource) {
-                count =
-                        getCountJoin(
-                                (JoiningJDBCFeatureSource) mappedSource,
-                                targetQuery,
-                                mapping,
-                                propertyNames);
+            Query unrollQuery = unrollQuery(targetQuery, mapping);
+            if (unrollQuery instanceof JoiningQuery) {
+                ((JoiningQuery) unrollQuery).setRootMapping(mapping);
             }
+            return mappedSource.getCount(unrollQuery);
         }
         return count;
     }
 
     private boolean canCount(
-            Query query, FeatureSource mappedSource, FeatureTypeMapping rootMapping)
-            throws IOException {
+            Query query, FeatureSource mappedSource, FeatureTypeMapping rootMapping) {
         boolean canCount = false;
         if (query.getFilter().equals(Filter.INCLUDE)) canCount = true;
         FilterCapabilities capabilities = null;
@@ -337,97 +340,11 @@ public class AppSchemaDataAccess implements DataAccess<FeatureType, Feature> {
             // we build each Feature
             if (postFilter == null || postFilter.equals(Filter.INCLUDE)) {
                 canCount = true;
+            } else {
+                LOGGER.log(Level.FINE, "Skipping count query due Complex post filter");
             }
         }
         return canCount;
-    }
-
-    private int getCountJoin(
-            JoiningJDBCFeatureSource source,
-            Query targetQuery,
-            FeatureTypeMapping mapping,
-            Set<PropertyName> propertyNames)
-            throws IOException {
-        List<FeatureChainedAttributeDescriptor> featureChainDescriptors =
-                getFeatureChainedDescriptorsFromFilter(mapping, propertyNames);
-        // wrap the query in the Joining one to have the unmapping visitor
-        // setting the ids
-        JoiningQuery unrollQuery =
-                (JoiningQuery) unrollQuery(new JoiningQuery(targetQuery), mapping);
-        JoiningQuery joining = buildJoiningQuery(featureChainDescriptors, unrollQuery, mapping);
-        return source.getCount(joining);
-    }
-
-    private boolean hasNestedProperties(FeatureType featureType, Set<PropertyName> propertyNames) {
-        boolean nestedProperties = false;
-        for (PropertyName pn : propertyNames) {
-            if (pn.evaluate(featureType) == null) {
-                nestedProperties = true;
-                break;
-            }
-        }
-        return nestedProperties;
-    }
-
-    // builds a JoiningQuery with QueryJoins retrieved
-    // from the chainedAttributes descriptors
-    private JoiningQuery buildJoiningQuery(
-            List<FeatureChainedAttributeDescriptor> descriptors,
-            JoiningQuery unmappedQuery,
-            FeatureTypeMapping rootMapping) {
-        List<JoiningQuery.QueryJoin> joins = new ArrayList<>();
-        for (FeatureChainedAttributeDescriptor d : descriptors) {
-            List<FeatureChainedAttributeVisitor.FeatureChainLink> links = d.getFeatureChain();
-            for (int j = 0; j < links.size() - 1; j++) {
-                FeatureChainedAttributeVisitor.FeatureChainLink link = links.get(j);
-                if (link.hasNestedFeature()) {
-                    StepList nestedTargetXpath = link.getNestedFeatureAttribute().nestedTargetXPath;
-                    FeatureChainedAttributeVisitor.FeatureChainLink link2 = links.get(j + 1);
-                    List<AttributeMapping> mappings2 =
-                            link2.getFeatureTypeMapping().getAttributeMappings();
-                    // retrieve the attribute mapping corresponding to the featureLink in the parent
-                    AttributeMapping mappingAttr =
-                            mappings2
-                                    .stream()
-                                    .filter(
-                                            m ->
-                                                    m.getTargetXPath()
-                                                            .equalsIgnoreIndex(nestedTargetXpath))
-                                    .findFirst()
-                                    .get();
-                    Expression parent = link.getNestedFeatureAttribute().getSourceExpression();
-                    Expression nested = mappingAttr.getSourceExpression();
-                    JoiningQuery.QueryJoin join = new JoiningQuery.QueryJoin();
-                    join.setForeignKeyName(nested);
-                    join.setJoiningKeyName(parent);
-                    FeatureTypeMapping nestedTypeMapping = link2.getFeatureTypeMapping();
-                    ContentFeatureSource source =
-                            (ContentFeatureSource) nestedTypeMapping.getSource();
-                    join.setJoiningTypeName(source.getEntry().getTypeName());
-                    FeatureTypeMapping parentTypeMapping = link.getFeatureTypeMapping();
-                    ContentFeatureSource sourceParent =
-                            (ContentFeatureSource) parentTypeMapping.getSource();
-                    join.setJoinedTypeName(sourceParent.getEntry().getTypeName());
-                    if (!joins.contains(join)) joins.add(join);
-                }
-            }
-        }
-        unmappedQuery.setQueryJoins(joins);
-        unmappedQuery.setRootMapping(rootMapping);
-        unmappedQuery.setCoordinateSystem(null);
-        unmappedQuery.setCoordinateSystemReproject(null);
-        return unmappedQuery;
-    }
-
-    private List<FeatureChainedAttributeDescriptor> getFeatureChainedDescriptorsFromFilter(
-            FeatureTypeMapping rootMapping, Set<PropertyName> propertyNames) {
-        FeatureChainedAttributeVisitor visitor = new FeatureChainedAttributeVisitor(rootMapping);
-        List<FeatureChainedAttributeDescriptor> descriptors = new ArrayList<>();
-        for (PropertyName pn : propertyNames) {
-            pn.accept(visitor, null);
-            descriptors.addAll(visitor.getFeatureChainedAttributes());
-        }
-        return descriptors;
     }
 
     /**
@@ -458,7 +375,6 @@ public class AppSchemaDataAccess implements DataAccess<FeatureType, Feature> {
      * unrolling the <code>org.geotools.filter.Filter</code> contained in the passed <code>query
      * </code>, and replacing the list of required attributes by the ones of the mapped FeatureType.
      */
-    @SuppressWarnings("unchecked")
     public Query unrollQuery(Query query, FeatureTypeMapping mapping) {
         Query unrolledQuery = Query.ALL;
         FeatureSource source = mapping.getSource();
@@ -888,5 +804,13 @@ public class AppSchemaDataAccess implements DataAccess<FeatureType, Feature> {
             }
         }
         return null;
+    }
+
+    public URL getUrl() {
+        return url;
+    }
+
+    public URL getParentUrl() {
+        return parentUrl;
     }
 }

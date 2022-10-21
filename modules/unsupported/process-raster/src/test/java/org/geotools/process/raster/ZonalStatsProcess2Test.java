@@ -87,7 +87,6 @@ public class ZonalStatsProcess2Test extends Assert {
         TIFFImageReader reader = null;
         GridCoverage2D coverage2D = null;
         GridCoverage2D covClassificator = null;
-        SimpleFeatureIterator iterator = null;
         try {
             // build the feature collection
             final File fileshp = TestData.file(this, "testpolygon.shp");
@@ -99,14 +98,13 @@ public class ZonalStatsProcess2Test extends Assert {
             SimpleFeatureCollection featureCollection =
                     (SimpleFeatureCollection) featureSource.getFeatures();
 
-            iterator = featureCollection.features();
-
             List<SimpleFeature> zones = new ArrayList<>(featureCollection.size());
+            try (SimpleFeatureIterator iterator = featureCollection.features()) {
+                while (iterator.hasNext()) {
+                    SimpleFeature feature = iterator.next();
 
-            while (iterator.hasNext()) {
-                SimpleFeature feature = iterator.next();
-
-                zones.add(feature);
+                    zones.add(feature);
+                }
             }
 
             // build the DataFile
@@ -169,14 +167,9 @@ public class ZonalStatsProcess2Test extends Assert {
 
             // Statistics definition
 
-            StatsType[] def =
-                    new StatsType[] {
-                        StatsType.MIN,
-                        StatsType.MAX,
-                        StatsType.SUM,
-                        StatsType.MEAN,
-                        StatsType.DEV_STD
-                    };
+            StatsType[] def = {
+                StatsType.MIN, StatsType.MAX, StatsType.SUM, StatsType.MEAN, StatsType.DEV_STD
+            };
 
             // invoke the process
             List<ZoneGeometry> zoneListStart =
@@ -362,12 +355,6 @@ public class ZonalStatsProcess2Test extends Assert {
             try {
                 if (covClassificator != null) {
                     covClassificator.dispose(true);
-                }
-            } catch (Exception e) {
-            }
-            try {
-                if (iterator != null) {
-                    iterator.close();
                 }
             } catch (Exception e) {
             }

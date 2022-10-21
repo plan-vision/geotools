@@ -7,18 +7,14 @@
 
         Version: $Id$
      ======================================================================= -->
-  <project xmlns="http://maven.apache.org/POM/4.0.0"
-           xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
-           xsi:schemaLocation="http://maven.apache.org/POM/4.0.0
-                               http://maven.apache.org/maven-v4_0_0.xsd">
+<project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://maven.apache.org/POM/4.0.0                                http://maven.apache.org/maven-v4_0_0.xsd">
   <modelVersion>4.0.0</modelVersion>
 
   <parent>
     <groupId>org.geotools</groupId>
     <artifactId>library</artifactId>
-    <version>26-SNAPSHOT</version>
+    <version>29-SNAPSHOT</version>
   </parent>
-
 
   <!-- =========================================================== -->
   <!--     Module Description                                      -->
@@ -28,13 +24,8 @@
   <packaging>jar</packaging>
 
   <name>Metadata</name>
-  <description>
-    Contains implementations of metadata and some core utilities classes.
-  </description>
-  <properties>
-    <moduleIdentifier>org.geotools.metadata</moduleIdentifier>
-  </properties>
-  
+  <description>Contains implementations of metadata and some core utilities classes.</description>
+
   <licenses>
     <license>
       <name>Lesser General Public License (LGPL)</name>
@@ -43,14 +34,13 @@
     </license>
   </licenses>
 
-
   <!-- =========================================================== -->
   <!--     Developers and Contributors                             -->
   <!-- =========================================================== -->
   <developers>
     <developer>
-      <name>Jody Garnett</name>
       <id>jive</id>
+      <name>Jody Garnett</name>
       <email>jive@users.sourceforge.net</email>
       <organization>Refractions Research</organization>
       <roles>
@@ -63,9 +53,7 @@
   <contributors>
     <contributor>
       <name>Touraïvane</name>
-      <organization>
-        Institut de Recherche pour le Développement (IRD)
-      </organization>
+      <organization>Institut de Recherche pour le Développement (IRD)</organization>
       <roles>
         <role>Java developper</role>
       </roles>
@@ -75,22 +63,25 @@
       <email>desruisseaux@users.sourceforge.net</email>
       <organization>Geomatys</organization>
       <organizationUrl>http://www.geomatys.fr/</organizationUrl>
-      <timezone>+1</timezone>
       <roles>
         <role>Retired Module Maintainer</role>
         <role>Retired Java Developer</role>
       </roles>
+      <timezone>+1</timezone>
     </contributor>
     <contributor>
       <name>Cédric Briançon</name>
       <email>cedric.briancon@geomatys.fr</email>
       <organization>Geomatys</organization>
-      <timezone>+1</timezone>
       <roles>
         <role>Java developper</role>
       </roles>
+      <timezone>+1</timezone>
     </contributor>
   </contributors>
+  <properties>
+    <moduleIdentifier>org.geotools.metadata</moduleIdentifier>
+  </properties>
 
   <!-- =========================================================== -->
   <!--     Dependency Management                                   -->
@@ -99,7 +90,7 @@
     <!-- NOTE: The metadata module does not depend on JTS. -->
     <dependency>
       <groupId>org.geotools</groupId>
-        <artifactId>gt-opengis</artifactId>
+      <artifactId>gt-opengis</artifactId>
       <version>${project.version}</version>
     </dependency>
     <!--
@@ -116,7 +107,8 @@
       <groupId>commons-logging</groupId>
       <artifactId>commons-logging</artifactId>
       <!-- The version number is specified in the parent POM. -->
-      <scope>provided</scope>  <!-- Not required for default execution. -->
+      <scope>provided</scope>
+      <!-- Not required for default execution. -->
       <optional>true</optional>
     </dependency>
     <dependency>
@@ -126,21 +118,52 @@
       <optional>true</optional>
     </dependency>
     <dependency>
-      <groupId>log4j</groupId>
-      <artifactId>log4j</artifactId>
-      <scope>provided</scope>  <!-- Not required for default execution. -->
-      <optional>true</optional>
-    </dependency>
-    <dependency>
       <groupId>org.apache.commons</groupId>
       <artifactId>commons-lang3</artifactId>
     </dependency>
-      <dependency>
-          <groupId>org.geotools.ogc</groupId>
-          <artifactId>net.opengis.ows</artifactId>
-          <version>${project.version}</version>
-          <scope>compile</scope>
-      </dependency>
+    <dependency>
+      <groupId>org.geotools.ogc</groupId>
+      <artifactId>net.opengis.ows</artifactId>
+      <version>${project.version}</version>
+      <scope>compile</scope>
+    </dependency>
+    <!-- Third-party logging libraries not required for default execution. -->
+    <!-- replaces log4j -->
+    <dependency>
+      <groupId>ch.qos.reload4j</groupId>
+      <artifactId>reload4j</artifactId>
+      <optional>true</optional>
+    </dependency>
+    <dependency>
+      <groupId>org.apache.logging.log4j</groupId>
+      <artifactId>log4j-api</artifactId>
+      <optional>true</optional>
+    </dependency>
+    <dependency>
+      <groupId>org.apache.logging.log4j</groupId>
+      <artifactId>log4j-core</artifactId>
+      <optional>true</optional>
+    </dependency>
+    <dependency>
+      <groupId>org.apache.logging.log4j</groupId>
+      <artifactId>log4j-jcl</artifactId>
+      <optional>true</optional>
+    </dependency>
+    <dependency>
+      <groupId>ch.qos.logback</groupId>
+      <artifactId>logback-classic</artifactId>
+      <optional>true</optional>
+    </dependency>
+    <dependency>
+      <groupId>ch.qos.logback</groupId>
+      <artifactId>logback-core</artifactId>
+      <optional>true</optional>
+    </dependency>
+    <dependency>
+      <groupId>org.mockito</groupId>
+      <artifactId>mockito-core</artifactId>
+      <scope>test</scope>
+    </dependency>
   </dependencies>
 
   <build>
@@ -149,10 +172,68 @@
         <directory>${basedir}/src/main/resources</directory>
       </resource>
       <resource>
-        <directory>${basedir}/src/main/properties</directory>
         <filtering>true</filtering>
+        <directory>${basedir}/src/main/properties</directory>
       </resource>
     </resources>
+    <plugins>
+      <plugin>
+        <artifactId>maven-clean-plugin</artifactId>
+        <configuration>
+          <filesets>
+            <fileset>
+              <directory>src/it/commons/target</directory>
+            </fileset>
+            <fileset>
+              <directory>src/it/log4j/target</directory>
+            </fileset>
+            <fileset>
+              <directory>src/it/logback/target</directory>
+            </fileset>
+            <fileset>
+              <directory>src/it/logging/target</directory>
+            </fileset>
+            <fileset>
+              <directory>src/it/reload4j/target</directory>
+            </fileset>
+          </filesets>
+          <followSymlinks>true</followSymlinks>
+          <failOnError>false</failOnError>
+        </configuration>
+      </plugin>
+      <plugin>
+        <artifactId>maven-invoker-plugin</artifactId>
+        <executions>
+          <execution>
+            <id>integration-test</id>
+            <goals>
+              <!-- run exec:exec to generate output -->
+              <goal>integration-test</goal>
+              <!-- run postbuild.sh to check output -->
+              <goal>verify</goal>
+            </goals>
+            <configuration>
+              <goals>
+                <goal>clean</goal>
+                <goal>compile</goal>
+                <goal>exec:exec</goal>
+                <goal>integration-test</goal>
+              </goals>
+              <verifyHookScript>postbuild.bsh</verifyHookScript>
+            </configuration>
+          </execution>
+        </executions>
+        <configuration>
+          <parallelThreads>1C</parallelThreads>
+          <ignoreFailures>true</ignoreFailures>
+          <cloneProjectsTo>${project.build.directory}/it</cloneProjectsTo>
+          <settingsFile>src/it/settings.xml</settingsFile>
+          <localRepositoryPath>${project.build.directory}/local-repo</localRepositoryPath>
+          <showErrors>true</showErrors>
+          <streamLogs>false</streamLogs>
+        </configuration>
+      </plugin>
+    </plugins>
   </build>
 
 </project>

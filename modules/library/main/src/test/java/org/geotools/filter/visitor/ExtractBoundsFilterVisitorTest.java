@@ -71,8 +71,15 @@ public class ExtractBoundsFilterVisitorTest extends TemporalFilterTestSupport {
     }
 
     @Test
+    public void testEnvelopeIntersects() {
+        Filter f = ff.intersects(ff.property("geom"), ff.literal(new Envelope(-10, 10, -10, 10)));
+        Envelope env = (Envelope) f.accept(visitor, null);
+        assertEquals(new Envelope(-10, 10, -10, 10), env);
+    }
+
+    @Test
     public void testTouches() {
-        Coordinate[] coords = new Coordinate[] {new Coordinate(0, 0), new Coordinate(10, 10)};
+        Coordinate[] coords = {new Coordinate(0, 0), new Coordinate(10, 10)};
         LineString lineString = new GeometryFactory().createLineString(coords);
         Filter filter = ff.touches(ff.property("name"), ff.literal(lineString));
         Envelope env = (Envelope) filter.accept(visitor, null);
@@ -81,7 +88,7 @@ public class ExtractBoundsFilterVisitorTest extends TemporalFilterTestSupport {
 
     @Test
     public void testBeyond() {
-        Coordinate[] coords = new Coordinate[] {new Coordinate(0, 0), new Coordinate(10, 10)};
+        Coordinate[] coords = {new Coordinate(0, 0), new Coordinate(10, 10)};
         LineString lineString = new GeometryFactory().createLineString(coords);
         Filter filter = ff.beyond(ff.property("name"), ff.literal(lineString), 100, "m");
         Envelope env = (Envelope) filter.accept(visitor, null);
@@ -90,7 +97,7 @@ public class ExtractBoundsFilterVisitorTest extends TemporalFilterTestSupport {
 
     @Test
     public void testNotBeyond() {
-        Coordinate[] coords = new Coordinate[] {new Coordinate(0, 0), new Coordinate(10, 10)};
+        Coordinate[] coords = {new Coordinate(0, 0), new Coordinate(10, 10)};
         LineString lineString = new GeometryFactory().createLineString(coords);
         Filter filter = ff.beyond(ff.property("name"), ff.literal(lineString), 100, "m");
         Envelope env = (Envelope) filter.accept(visitor, null);
@@ -127,7 +134,7 @@ public class ExtractBoundsFilterVisitorTest extends TemporalFilterTestSupport {
 
     @Test
     public void testDisjoint() {
-        Coordinate[] coords = new Coordinate[] {new Coordinate(0, 0), new Coordinate(10, 10)};
+        Coordinate[] coords = {new Coordinate(0, 0), new Coordinate(10, 10)};
         LineString lineString = new GeometryFactory().createLineString(coords);
         Filter filter = ff.disjoint(ff.property("name"), ff.literal(lineString));
         Envelope env = (Envelope) filter.accept(visitor, null);
@@ -137,7 +144,7 @@ public class ExtractBoundsFilterVisitorTest extends TemporalFilterTestSupport {
 
     @Test
     public void testAndDisjoint() {
-        Coordinate[] coords = new Coordinate[] {new Coordinate(0, 0), new Coordinate(10, 10)};
+        Coordinate[] coords = {new Coordinate(0, 0), new Coordinate(10, 10)};
         LineString lineString = new GeometryFactory().createLineString(coords);
         Filter filter = ff.disjoint(ff.property("name"), ff.literal(lineString));
         filter = ff.and(filter, ff.bbox(ff.property("geom"), 50, 50, 150, 150, null));

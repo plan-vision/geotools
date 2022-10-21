@@ -16,16 +16,27 @@
  */
 package org.geotools.jdbc;
 
+import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertNotNull;
+import static org.junit.Assert.assertNotSame;
+import static org.junit.Assert.assertTrue;
+import static org.junit.Assert.fail;
+
 import java.io.IOException;
 import java.sql.Connection;
 import java.sql.Date;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.sql.Statement;
+import java.sql.Types;
 import java.util.Arrays;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.function.Consumer;
+import org.apache.commons.lang3.RandomStringUtils;
+import org.geotools.data.DataUtilities;
 import org.geotools.data.FeatureReader;
 import org.geotools.data.FeatureWriter;
 import org.geotools.data.Query;
@@ -35,6 +46,7 @@ import org.geotools.data.simple.SimpleFeatureSource;
 import org.geotools.feature.NameImpl;
 import org.geotools.feature.simple.SimpleFeatureTypeBuilder;
 import org.geotools.referencing.CRS;
+import org.junit.Test;
 import org.locationtech.jts.geom.Coordinate;
 import org.locationtech.jts.geom.Geometry;
 import org.locationtech.jts.geom.GeometryFactory;
@@ -49,13 +61,14 @@ import org.opengis.filter.FilterFactory;
 import org.opengis.referencing.FactoryException;
 import org.opengis.referencing.crs.CoordinateReferenceSystem;
 
-@SuppressWarnings("PMD.JUnit4TestShouldUseTestAnnotation") // not yet a JUnit4 test
 public abstract class JDBCDataStoreOnlineTest extends JDBCTestSupport {
+    @Test
     public void testGetNames() throws IOException {
         String[] typeNames = dataStore.getTypeNames();
         assertTrue(new HashSet<>(Arrays.asList(typeNames)).contains(tname("ft1")));
     }
 
+    @Test
     public void testGetSchema() throws Exception {
         SimpleFeatureType ft1 = dataStore.getSchema(tname("ft1"));
         assertNotNull(ft1);
@@ -77,6 +90,7 @@ public abstract class JDBCDataStoreOnlineTest extends JDBCTestSupport {
                 String.class, ft1.getDescriptor(aname("stringProperty")).getType().getBinding());
     }
 
+    @Test
     public void testCreateSchema() throws Exception {
         SimpleFeatureTypeBuilder builder = new SimpleFeatureTypeBuilder();
         builder.setName(tname("ft2"));
@@ -119,6 +133,7 @@ public abstract class JDBCDataStoreOnlineTest extends JDBCTestSupport {
         }
     }
 
+    @Test
     public void testCreateSchemaWithConstraints() throws Exception {
         SimpleFeatureTypeBuilder builder = new SimpleFeatureTypeBuilder();
         builder.setName(tname("ft2"));
@@ -164,6 +179,62 @@ public abstract class JDBCDataStoreOnlineTest extends JDBCTestSupport {
         }
     }
 
+    @Test
+    public void testCreateSchemaWithNativeTypename() throws Exception {
+        assertLargeText(b -> b.userData(JDBCDataStore.JDBC_NATIVE_TYPENAME, getCLOBTypeName()));
+    }
+
+    /**
+     * Used by testCreateSchemaWithNativeTypename. Allows database specific overrides, defaults to
+     * <code>CLOB</code>
+     */
+    protected String getCLOBTypeName() {
+        return "CLOB";
+    }
+
+    @Test
+    public void testCreateSchemaWithNativeType() throws Exception {
+        assertLargeText(b -> b.userData(JDBCDataStore.JDBC_NATIVE_TYPE, Types.CLOB));
+    }
+
+    private void assertLargeText(Consumer<SimpleFeatureTypeBuilder> stringCustomizer)
+            throws FactoryException, IOException {
+        SimpleFeatureTypeBuilder builder = new SimpleFeatureTypeBuilder();
+        String typeName = tname("ft2");
+        builder.setName(typeName);
+        builder.setNamespaceURI(dataStore.getNamespaceURI());
+        builder.setCRS(CRS.decode("EPSG:4326"));
+        builder.add(aname("geometry"), Geometry.class);
+        builder.nillable(false).add(aname("intProperty"), Integer.class);
+        // database can process this name (also tried going from Type.CLOB to a name,
+        // but for example postgresql does have a mapping for it
+        String stringProperty = aname("stringProperty");
+        stringCustomizer.accept(builder);
+        builder.add(stringProperty, String.class);
+
+        SimpleFeatureType featureType = builder.buildFeatureType();
+        dataStore.createSchema(featureType);
+
+        // cannot get a consistent type response from different databases, but it should be able
+        // to hold a very large string without cutting it
+        String largeString = RandomStringUtils.random(Short.MAX_VALUE + 1, true, false);
+        try (FeatureWriter<SimpleFeatureType, SimpleFeature> w =
+                dataStore.getFeatureWriter(typeName, Transaction.AUTO_COMMIT)) {
+            w.hasNext();
+
+            SimpleFeature f = w.next();
+            f.setAttribute(1, 123);
+            f.setAttribute(2, largeString);
+            w.write();
+        }
+
+        // table was just created, it only has one feature inside, no need for a filter
+        SimpleFeatureCollection fc = dataStore.getFeatureSource(typeName).getFeatures();
+        SimpleFeature test = DataUtilities.first(fc);
+        assertEquals(largeString, test.getAttribute(stringProperty));
+    }
+
+    @Test
     public void testRemoveSchema() throws Exception {
         SimpleFeatureType ft = dataStore.getSchema(tname("ft1"));
         assertNotNull(ft);
@@ -176,6 +247,7 @@ public abstract class JDBCDataStoreOnlineTest extends JDBCTestSupport {
         }
     }
 
+    @Test
     public void testSimpleIndex() throws Exception {
         SimpleFeatureType ft = dataStore.getSchema(tname("ft1"));
         assertNotNull(ft);
@@ -216,6 +288,7 @@ public abstract class JDBCDataStoreOnlineTest extends JDBCTestSupport {
         }
     }
 
+    @Test
     public void testMultiColumnIndex() throws Exception {
         SimpleFeatureType ft = dataStore.getSchema(tname("ft1"));
         assertNotNull(ft);
@@ -262,6 +335,7 @@ public abstract class JDBCDataStoreOnlineTest extends JDBCTestSupport {
         }
     }
 
+    @Test
     public void testCreateSchemaUTMCRS() throws Exception {
         SimpleFeatureTypeBuilder builder = new SimpleFeatureTypeBuilder();
         builder.setName(tname("ft2"));
@@ -280,7 +354,7 @@ public abstract class JDBCDataStoreOnlineTest extends JDBCTestSupport {
         try (FeatureWriter w = dataStore.getFeatureWriter(tname("ft2"), Transaction.AUTO_COMMIT)) {
             w.hasNext();
 
-            // write out a feature with a geomety in teh srs, basically accomodate databases that
+            // write out a feature with a geometry in the srs, basically accomodate databases that
             // have
             // to query the first feature in order to get the srs for the feature type
             SimpleFeature f = (SimpleFeature) w.next();
@@ -305,9 +379,10 @@ public abstract class JDBCDataStoreOnlineTest extends JDBCTestSupport {
      * but the wrapped geographic CRS is order dependent)
      */
     protected CoordinateReferenceSystem getUTMCRS() throws FactoryException {
-        return CRS.decode("EPSG:26713");
+        return decodeEPSG(26713);
     }
 
+    @Test
     public void testCreateSchemaFidColumn() throws Exception {
         // test a case where the feature type we are creating contains a column named "fid"
         SimpleFeatureTypeBuilder builder = new SimpleFeatureTypeBuilder();
@@ -362,11 +437,13 @@ public abstract class JDBCDataStoreOnlineTest extends JDBCTestSupport {
         }
     }
 
+    @Test
     public void testGetFeatureSource() throws Exception {
         SimpleFeatureSource featureSource = dataStore.getFeatureSource(tname("ft1"));
         assertNotNull(featureSource);
     }
 
+    @Test
     public void testGetFeatureReader() throws Exception {
         final GeometryFactory gf = dataStore.getGeometryFactory();
 
@@ -426,6 +503,7 @@ public abstract class JDBCDataStoreOnlineTest extends JDBCTestSupport {
         }
     }
 
+    @Test
     public void testGetFeatureWriter() throws IOException {
         try (FeatureWriter<SimpleFeatureType, SimpleFeature> writer =
                 dataStore.getFeatureWriter(tname("ft1"), Transaction.AUTO_COMMIT)) {
@@ -448,6 +526,7 @@ public abstract class JDBCDataStoreOnlineTest extends JDBCTestSupport {
         }
     }
 
+    @Test
     public void testGetFeatureWriterWithFilter() throws IOException {
         FilterFactory ff = dataStore.getFilterFactory();
 
@@ -471,6 +550,7 @@ public abstract class JDBCDataStoreOnlineTest extends JDBCTestSupport {
         assertEquals(1, features.size());
     }
 
+    @Test
     public void testGetFeatureWriterAppend() throws IOException {
         try (FeatureWriter<SimpleFeatureType, SimpleFeature> writer =
                 dataStore.getFeatureWriterAppend(tname("ft1"), Transaction.AUTO_COMMIT)) {

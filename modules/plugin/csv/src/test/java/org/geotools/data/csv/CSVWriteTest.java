@@ -95,7 +95,7 @@ public class CSVWriteTest {
 
     @After
     public void removeTemporaryLocations() throws IOException {
-        File list[] = tmp.listFiles();
+        File[] list = tmp.listFiles();
         if (list != null) {
             for (File file : list) {
                 file.delete();
@@ -106,7 +106,7 @@ public class CSVWriteTest {
 
     // Make sure any temp files were cleaned up.
     public boolean cleanedup() {
-        File list[] = tmp.listFiles((dir, name) -> name.endsWith(".csv"));
+        File[] list = tmp.listFiles((dir, name) -> name.endsWith(".csv"));
         if (list != null) {
             for (File file : list) {
                 if (file.getName().equalsIgnoreCase("locations.csv")) {
@@ -233,6 +233,7 @@ public class CSVWriteTest {
     }
 
     @Test
+    @SuppressWarnings("PMD.UseTryWithResources") // need transaction in catch for rollback
     public void removeAllExample() throws Exception {
         Map<String, Serializable> params = new HashMap<>();
         params.put("file", statesfile);
@@ -337,14 +338,11 @@ public class CSVWriteTest {
         duplicate.createSchema(featureType);
 
         SimpleFeature feature, newFeature;
-
         Query query = new Query(featureType.getTypeName(), Filter.INCLUDE);
-        FeatureReader<SimpleFeatureType, SimpleFeature> reader =
-                store.getFeatureReader(query, Transaction.AUTO_COMMIT);
-
-        FeatureWriter<SimpleFeatureType, SimpleFeature> writer =
-                duplicate.getFeatureWriterAppend("duplicate", Transaction.AUTO_COMMIT);
-        try {
+        try (FeatureReader<SimpleFeatureType, SimpleFeature> reader =
+                        store.getFeatureReader(query, Transaction.AUTO_COMMIT);
+                FeatureWriter<SimpleFeatureType, SimpleFeature> writer =
+                        duplicate.getFeatureWriterAppend("duplicate", Transaction.AUTO_COMMIT)) {
             while (reader.hasNext()) {
                 feature = reader.next();
                 newFeature = writer.next();
@@ -352,9 +350,6 @@ public class CSVWriteTest {
                 newFeature.setAttributes(feature.getAttributes());
                 writer.write();
             }
-        } finally {
-            reader.close();
-            writer.close();
         }
         assertTrue("Temp files being left behind", cleanedup());
         // Test that content was appended
@@ -396,12 +391,10 @@ public class CSVWriteTest {
 
         SimpleFeature feature, newFeature;
 
-        FeatureReader<SimpleFeatureType, SimpleFeature> reader = store.getFeatureReader();
-
-        FeatureWriter<SimpleFeatureType, SimpleFeature> writer =
-                duplicate.getFeatureWriterAppend(
-                        duplicate.getTypeNames()[0], Transaction.AUTO_COMMIT);
-        try {
+        try (FeatureReader<SimpleFeatureType, SimpleFeature> reader = store.getFeatureReader();
+                FeatureWriter<SimpleFeatureType, SimpleFeature> writer =
+                        duplicate.getFeatureWriterAppend(
+                                duplicate.getTypeNames()[0], Transaction.AUTO_COMMIT)) {
             while (reader.hasNext()) {
                 feature = reader.next();
                 newFeature = writer.next();
@@ -409,9 +402,6 @@ public class CSVWriteTest {
                 newFeature.setAttributes(feature.getAttributes());
                 writer.write();
             }
-        } finally {
-            reader.close();
-            writer.close();
         }
         assertTrue("Temp files being left behind", cleanedup());
         String contents = getFileContents(file2);
@@ -462,13 +452,11 @@ public class CSVWriteTest {
 
         SimpleFeature feature, newFeature;
 
-        FeatureReader<SimpleFeatureType, SimpleFeature> reader =
-                store.getFeatureReader(new Query("locations"), Transaction.AUTO_COMMIT);
-
-        FeatureWriter<SimpleFeatureType, SimpleFeature> writer =
-                duplicate.getFeatureWriterAppend(
-                        duplicate.getTypeNames()[0], Transaction.AUTO_COMMIT);
-        try {
+        try (FeatureReader<SimpleFeatureType, SimpleFeature> reader =
+                        store.getFeatureReader(new Query("locations"), Transaction.AUTO_COMMIT);
+                FeatureWriter<SimpleFeatureType, SimpleFeature> writer =
+                        duplicate.getFeatureWriterAppend(
+                                duplicate.getTypeNames()[0], Transaction.AUTO_COMMIT)) {
             while (reader.hasNext()) {
                 feature = reader.next();
                 newFeature = writer.next();
@@ -476,9 +464,6 @@ public class CSVWriteTest {
                 newFeature.setAttributes(feature.getAttributes());
                 writer.write();
             }
-        } finally {
-            reader.close();
-            writer.close();
         }
         assertTrue("Temp files being left behind", cleanedup());
         String contents = getFileContents(file2);
@@ -546,12 +531,10 @@ public class CSVWriteTest {
 
         SimpleFeature feature, newFeature;
 
-        FeatureReader<SimpleFeatureType, SimpleFeature> reader = store.getFeatureReader();
-
-        FeatureWriter<SimpleFeatureType, SimpleFeature> writer =
-                duplicate.getFeatureWriterAppend(
-                        duplicate.getTypeNames()[0], Transaction.AUTO_COMMIT);
-        try {
+        try (FeatureReader<SimpleFeatureType, SimpleFeature> reader = store.getFeatureReader();
+                FeatureWriter<SimpleFeatureType, SimpleFeature> writer =
+                        duplicate.getFeatureWriterAppend(
+                                duplicate.getTypeNames()[0], Transaction.AUTO_COMMIT)) {
             while (reader.hasNext()) {
                 feature = reader.next();
                 newFeature = writer.next();
@@ -559,9 +542,6 @@ public class CSVWriteTest {
                 newFeature.setAttributes(feature.getAttributes());
                 writer.write();
             }
-        } finally {
-            reader.close();
-            writer.close();
         }
         assertTrue("Temp files being left behind", cleanedup());
         String contents = getFileContents(file2);

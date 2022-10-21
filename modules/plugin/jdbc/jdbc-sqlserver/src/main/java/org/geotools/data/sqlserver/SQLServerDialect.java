@@ -174,6 +174,7 @@ public class SQLServerDialect extends BasicSQLDialect {
         // force varchar, if not it will default to nvarchar which won't support length restrictions
         overrides.put(Types.VARCHAR, "varchar");
         overrides.put(Types.BLOB, "varbinary");
+        overrides.put(Types.CLOB, "text");
     }
 
     @Override
@@ -1009,5 +1010,31 @@ public class SQLServerDialect extends BasicSQLDialect {
             Map<Class<? extends FeatureVisitor>, String> aggregates) {
         super.registerAggregateFunctions(aggregates);
         aggregates.put(StandardDeviationVisitor.class, "STDEVP");
+    }
+
+    @Override
+    public boolean canGroupOnGeometry() {
+        // The type "geometry" is not comparable. It cannot be used in the GROUP BY clause.
+        return false;
+    }
+
+    @Override
+    public String encodeNextSequenceValue(String schemaName, String sequenceName) {
+        return "NEXT VALUE FOR " + sequenceName;
+    }
+
+    @Override
+    public Object getNextSequenceValue(String schemaName, String sequenceName, Connection cx)
+            throws SQLException {
+        final String sql = "SELECT " + encodeNextSequenceValue(schemaName, sequenceName);
+        dataStore.getLogger().fine(sql);
+
+        try (Statement st = cx.createStatement();
+                ResultSet rs = st.executeQuery(sql)) {
+            if (rs.next()) {
+                return rs.getLong(1);
+            }
+            return null;
+        }
     }
 }

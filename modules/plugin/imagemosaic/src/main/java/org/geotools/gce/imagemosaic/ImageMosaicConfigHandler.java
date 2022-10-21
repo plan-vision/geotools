@@ -67,6 +67,7 @@ import org.geotools.gce.imagemosaic.acceptors.GranuleAcceptor;
 import org.geotools.gce.imagemosaic.acceptors.GranuleAcceptorFactorySPI;
 import org.geotools.gce.imagemosaic.acceptors.GranuleAcceptorFactorySPIFinder;
 import org.geotools.gce.imagemosaic.catalog.CatalogConfigurationBean;
+import org.geotools.gce.imagemosaic.catalog.CatalogConfigurationBeans;
 import org.geotools.gce.imagemosaic.catalog.CogConfiguration;
 import org.geotools.gce.imagemosaic.catalog.GranuleCatalog;
 import org.geotools.gce.imagemosaic.catalog.GranuleCatalogFactory;
@@ -134,7 +135,6 @@ public class ImageMosaicConfigHandler {
      */
     private static final Boolean USE_MEMORY_MAPPED_BUFFERS =
             !System.getProperty("os.name", "Windows").contains("Windows");
-
     private List<PropertiesCollector> propertiesCollectors = null;
 
     private Map<String, MosaicConfigurationBean> configurations = new HashMap<>();
@@ -198,6 +198,17 @@ public class ImageMosaicConfigHandler {
         Indexer indexer = IndexerUtils.initializeIndexer(params, parent);
         if (indexer != null) {
             indexerFile = indexer.getIndexerFile();
+
+            // override with coverage specific parameters, if any
+            String name = IndexerUtils.getParameter(Prop.NAME, indexer);
+            if (name != null) {
+                Coverage coverage = IndexerUtils.getCoverage(indexer, name);
+                if (coverage != null && coverage.getParameters() != null) {
+                    for (ParametersType.Parameter param : coverage.getParameters().getParameter()) {
+                        IndexerUtils.setParam(indexer, param.getName(), param.getValue());
+                    }
+                }
+            }
         }
 
         Hints hints = configuration.getHints();
@@ -328,19 +339,43 @@ public class ImageMosaicConfigHandler {
 
         // Consider checking that from the indexer if any
         final File datastoreProperties = new File(parent, "datastore.properties");
-        // GranuleCatalog catalog = null;
+        CatalogConfigurationBean catalogConfig = new CatalogConfigurationBean();
+        CatalogConfigurationBeans configurations = new CatalogConfigurationBeans(catalogConfig);
+        String location = runConfiguration.getParameter(Prop.LOCATION_ATTRIBUTE);
+        if (location != null) {
+            catalogConfig.setLocationAttribute(location);
+        }
+        String typeName = runConfiguration.getParameter(Prop.TYPENAME);
+        if (typeName != null) {
+            catalogConfig.setTypeName(typeName);
+        }
+        String name = runConfiguration.getParameter(Prop.NAME);
+        if (name != null) {
+            catalogConfig.setName(name);
+        }
+        String skipExtOverviews = runConfiguration.getParameter(Prop.SKIP_EXTERNAL_OVERVIEWS);
+        if ("true".equalsIgnoreCase(skipExtOverviews)) {
+            catalogConfig.setSkipExternalOverviews(true);
+        }
+        String wrapStore = runConfiguration.getParameter(Prop.WRAP_STORE);
+        if ("true".equalsIgnoreCase(wrapStore)) {
+            catalogConfig.setWrapStore(true);
+        }
+
         if (Utils.checkFileReadable(datastoreProperties)) {
             // read the properties file
             Properties properties = createGranuleCatalogProperties(datastoreProperties);
-            // pass the typename from the indexer, if one is available
-            String indexerTypeName = runConfiguration.getParameter(Prop.TYPENAME);
-            if (indexerTypeName != null && properties.getProperty(Prop.TYPENAME) == null) {
-                properties.put(Prop.TYPENAME, indexerTypeName);
+            // pass the typename from the property file, if one is available
+            String propertyTypeName = properties.getProperty(Prop.TYPENAME);
+            if (propertyTypeName != null) {
+                catalogConfig.setTypeName(propertyTypeName);
             }
+
             catalog =
                     createGranuleCatalogFromDatastore(
                             parent,
                             properties,
+                            configurations,
                             create,
                             Boolean.parseBoolean(runConfiguration.getParameter(Prop.WRAP_STORE)),
                             runConfiguration.getHints());
@@ -360,12 +395,14 @@ public class ImageMosaicConfigHandler {
             }
             params.put(ShapefileDataStoreFactory.MEMORY_MAPPED.key, USE_MEMORY_MAPPED_BUFFERS);
             params.put(ShapefileDataStoreFactory.DBFTIMEZONE.key, TimeZone.getTimeZone("UTC"));
-            params.put(
-                    Prop.LOCATION_ATTRIBUTE,
-                    runConfiguration.getParameter(Prop.LOCATION_ATTRIBUTE));
             catalog =
                     GranuleCatalogFactory.createGranuleCatalog(
-                            params, false, create, Utils.SHAPE_SPI, runConfiguration.getHints());
+                            params,
+                            configurations,
+                            false,
+                            create,
+                            Utils.SHAPE_SPI,
+                            runConfiguration.getHints());
             MultiLevelROIProvider roi =
                     MultiLevelROIProviderMosaicFactory.createFootprintProvider(
                             parent, runConfiguration.getHints());
@@ -396,11 +433,18 @@ public class ImageMosaicConfigHandler {
             throws IOException {
         Utilities.ensureNonNull("datastoreProperties", datastoreProperties);
         Properties properties = createGranuleCatalogProperties(datastoreProperties);
-        return createGranuleCatalogFromDatastore(parent, properties, create, wraps, hints);
+        CatalogConfigurationBeans configurations = new CatalogConfigurationBeans();
+        return createGranuleCatalogFromDatastore(
+                parent, properties, configurations, create, wraps, hints);
     }
 
     private static GranuleCatalog createGranuleCatalogFromDatastore(
-            File parent, Properties properties, boolean create, boolean wraps, Hints hints)
+            File parent,
+            Properties properties,
+            CatalogConfigurationBeans configurations,
+            boolean create,
+            boolean wraps,
+            Hints hints)
             throws IOException {
         GranuleCatalog catalog = null;
         // SPI
@@ -428,14 +472,13 @@ public class ImageMosaicConfigHandler {
 
             catalog =
                     GranuleCatalogFactory.createGranuleCatalog(
-                            properties, false, create, spi, hints);
+                            properties, configurations, false, create, spi, hints);
             MultiLevelROIProvider rois =
                     MultiLevelROIProviderMosaicFactory.createFootprintProvider(parent);
             catalog.setMultiScaleROIProvider(rois);
 
         } catch (Exception e) {
-            final IOException ioe = new IOException();
-            throw (IOException) ioe.initCause(e);
+            throw new IOException(e);
         }
         return catalog;
     }
@@ -808,7 +851,8 @@ public class ImageMosaicConfigHandler {
         }
         // Create the catalog
         GranuleCatalog catalog =
-                GranuleCatalogFactory.createGranuleCatalog(sourceURL, catalogBean, null, hints);
+                GranuleCatalogFactory.createGranuleCatalog(
+                        sourceURL, new CatalogConfigurationBeans(catalogBean), null, hints);
         File parent = URLs.urlToFile(sourceURL).getParentFile();
         MultiLevelROIProvider rois =
                 MultiLevelROIProviderMosaicFactory.createFootprintProvider(parent);
@@ -858,49 +902,24 @@ public class ImageMosaicConfigHandler {
             final String rootMosaicDir) {
         final boolean isAbsolutePath =
                 Boolean.parseBoolean(configuration.getParameter(Prop.ABSOLUTE_PATH));
-        hints =
-                updateHints(
-                        ancillaryFile,
-                        isAbsolutePath,
-                        rootMosaicDir,
-                        configuration,
-                        hints,
-                        Utils.AUXILIARY_FILES_PATH);
-        hints =
-                updateHints(
-                        datastoreFile,
-                        isAbsolutePath,
-                        rootMosaicDir,
-                        configuration,
-                        hints,
-                        Utils.AUXILIARY_DATASTORE_PATH);
+        hints = updateHints(ancillaryFile, configuration, hints, Utils.AUXILIARY_FILES_PATH);
+        hints = updateHints(datastoreFile, configuration, hints, Utils.AUXILIARY_DATASTORE_PATH);
+        // the ND readers use the parentDir in case the path was not absolute
+        if (!isAbsolutePath) {
+            hints.put(Utils.PARENT_DIR, rootMosaicDir);
+        }
         hints = updateRepositoryHints(configuration, hints);
         setReader(hints, true);
     }
 
     private Hints updateHints(
-            String filePath,
-            boolean isAbsolutePath,
-            String rootMosaicDir,
-            CatalogBuilderConfiguration configuration,
-            Hints hints,
-            Key key) {
-        String updatedFilePath = null;
+            String filePath, CatalogBuilderConfiguration configuration, Hints hints, Key key) {
         if (filePath != null) {
-            if (isAbsolutePath && !filePath.startsWith(rootMosaicDir)) {
-                updatedFilePath = rootMosaicDir + File.separatorChar + filePath;
-            } else {
-                updatedFilePath = filePath;
-            }
-
             if (hints != null) {
-                hints.put(key, updatedFilePath);
+                hints.put(key, filePath);
             } else {
-                hints = new Hints(key, updatedFilePath);
+                hints = new Hints(key, filePath);
                 configuration.setHints(hints);
-            }
-            if (!isAbsolutePath) {
-                hints.put(Utils.PARENT_DIR, rootMosaicDir);
             }
         }
         return hints;
@@ -1051,11 +1070,12 @@ public class ImageMosaicConfigHandler {
             boolean haveConfigs = configurations != null && !configurations.isEmpty();
             if (haveConfigs || supportsEmpty) {
 
-                // We did found some MosaicConfigurations
+                // We did find some MosaicConfigurations
                 Set<String> keys = configurations.keySet();
-                int keySize = keys.size();
+                boolean useName =
+                        (indexerFile != null && indexerFile.getAbsolutePath().endsWith("xml"))
+                                || configurations.size() > 1;
                 if (haveConfigs || !supportsEmpty) {
-                    final boolean useName = keySize > 1;
                     for (String key : keys) {
                         MosaicConfigurationBean mosaicConfiguration = configurations.get(key);
                         RasterManager manager = parentReader.getRasterManager(key);
@@ -1070,8 +1090,8 @@ public class ImageMosaicConfigHandler {
                 // we create a root properties file if we have more than one coverage, or if the
                 // one coverage does not have the default name
                 if (supportsEmpty
-                        || keySize > 1
-                        || (keySize > 0 && !base.equals(keys.iterator().next()))) {
+                        || useName
+                        || (!keys.isEmpty() && !base.equals(keys.iterator().next()))) {
                     File mosaicFile = null;
                     File originFile = null;
                     if (indexerFile.getAbsolutePath().endsWith("xml")) {
@@ -1244,7 +1264,7 @@ public class ImageMosaicConfigHandler {
             properties.setProperty(Prop.SUGGESTED_FORMAT, cachedFormat.getClass().getName());
         }
 
-        URLSourceSPIProvider urlSourceSpiProvider =
+        SourceSPIProviderFactory urlSourceSpiProvider =
                 catalogConfigurationBean.getUrlSourceSPIProvider();
         if (urlSourceSpiProvider instanceof CogConfiguration) {
             CogConfiguration cogBean = (CogConfiguration) urlSourceSpiProvider;
@@ -1300,6 +1320,12 @@ public class ImageMosaicConfigHandler {
 
         if (mosaicConfiguration.getNoData() != null) {
             properties.setProperty(Prop.NO_DATA, String.valueOf(mosaicConfiguration.getNoData()));
+        }
+
+        if (catalogConfigurationBean.isSkipExternalOverviews()) {
+            properties.setProperty(
+                    Prop.SKIP_EXTERNAL_OVERVIEWS,
+                    String.valueOf(catalogConfigurationBean.isSkipExternalOverviews()));
         }
 
         String filePath =
@@ -1454,7 +1480,7 @@ public class ImageMosaicConfigHandler {
             configBuilder.setTimeAttribute(
                     IndexerUtils.getAttribute(targetCoverageName, Utils.TIME_DOMAIN, indexer));
             configBuilder.setCrsAttribute(
-                    IndexerUtils.getAttribute(targetCoverageName, Prop.CRS_ATTRIBUTE, indexer));
+                    IndexerUtils.getAttribute(targetCoverageName, Utils.CRS_DOMAIN, indexer));
             configBuilder.setElevationAttribute(
                     IndexerUtils.getAttribute(targetCoverageName, Utils.ELEVATION_DOMAIN, indexer));
             configBuilder.setAdditionalDomainAttributes(
@@ -1505,6 +1531,8 @@ public class ImageMosaicConfigHandler {
             } else {
                 catalogConfigurationBean.setTypeName(targetCoverageName);
             }
+            catalogConfigurationBean.setSkipExternalOverviews(
+                    IndexerUtils.getParameterAsBoolean(Prop.SKIP_EXTERNAL_OVERVIEWS, indexer));
             configBuilder.setCatalogConfigurationBean(catalogConfigurationBean);
             configBuilder.setCheckAuxiliaryMetadata(
                     IndexerUtils.getParameterAsBoolean(Prop.CHECK_AUXILIARY_METADATA, indexer));
@@ -1765,13 +1793,13 @@ public class ImageMosaicConfigHandler {
             // COG CASE:
             // Create an ImageMosaicURLConsumer to consume urls and an ImageMosaicDatastoreWalker
             // to provide them to the consumer
-            URLSourceSPIProvider urlSourceSPIProvider =
+            SourceSPIProviderFactory urlSourceSPIProvider =
                     new CogConfiguration(getRunConfiguration().getIndexer());
-            ImageMosaicURLFeatureConsumer.ImageMosaicURLConsumer urlsConsumer =
-                    new ImageMosaicURLFeatureConsumer.ImageMosaicURLConsumer(urlSourceSPIProvider);
+            ImageMosaicURIFeatureConsumer.ImageMosaicURIConsumer uriConsumer =
+                    new ImageMosaicURIFeatureConsumer.ImageMosaicURIConsumer(urlSourceSPIProvider);
             walker =
                     new ImageMosaicDatastoreWalker(
-                            this, eventHandler, new ImageMosaicURLFeatureConsumer(urlsConsumer));
+                            this, eventHandler, new ImageMosaicURIFeatureConsumer(uriConsumer));
         } else if (isUseExistingSchema()) {
             // walks existing granules in the origin store
             walker =

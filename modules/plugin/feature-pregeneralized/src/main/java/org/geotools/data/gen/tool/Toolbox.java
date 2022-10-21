@@ -72,7 +72,7 @@ public class Toolbox {
         else System.exit(1);
     }
 
-    public boolean parse(String args[]) throws IOException {
+    public boolean parse(String[] args) throws IOException {
         if (args.length == 0) {
             System.out.println("Missing cmd validate | generalize");
             return false;
@@ -139,7 +139,10 @@ public class Toolbox {
         shapeDS.dispose();
     }
 
-    @SuppressWarnings("PMD.CloseResource") // writers are actually closed
+    @SuppressWarnings({
+        "PMD.CloseResource",
+        "PMD.UseTryWithResources"
+    }) // writers are actually closed
     protected void generalizeShapeFile(
             File shapeFile, DataStore shapeDS, File targetDir, Double[] distanceArray)
             throws IOException {
@@ -223,7 +226,7 @@ public class Toolbox {
         return result;
     }
 
-    private void dumpGeneralizeParameters(String argv[]) {
+    private void dumpGeneralizeParameters(String[] argv) {
         for (int i = 1; i < argv.length; i++) {
             String paramName = null;
             switch (i) {

@@ -16,6 +16,12 @@
  */
 package org.geotools.data.postgis;
 
+import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertNotNull;
+import static org.junit.Assert.assertNull;
+import static org.junit.Assert.assertTrue;
+
 import java.io.IOException;
 import org.geotools.data.DataUtilities;
 import org.geotools.data.FeatureReader;
@@ -131,8 +137,15 @@ public class PostGISJsonOnlineTest extends JDBCTestSupport {
     public void testJSONPointerFunction() throws Exception {
         ContentFeatureSource fs = dataStore.getFeatureSource(tname("jsontest"));
         FilterFactory ff = dataStore.getFilterFactory();
-        Function pointer =
-                ff.function("jsonPointer", ff.property("jsonColumn"), ff.literal("/weight"));
+        pointerEquals(fs, ff, "jsonColumn");
+        if (pgJsonTestSetup.supportJsonB) {
+            pointerEquals(fs, ff, "jsonbColumn");
+        }
+    }
+
+    private void pointerEquals(ContentFeatureSource fs, FilterFactory ff, String column)
+            throws IOException {
+        Function pointer = ff.function("jsonPointer", ff.property(column), ff.literal("/weight"));
         Literal literal = ff.literal(0.001);
         Filter filter = ff.equals(pointer, literal);
         Query q = new Query(tname("jsontest"), filter);
@@ -152,8 +165,16 @@ public class PostGISJsonOnlineTest extends JDBCTestSupport {
     public void testJSONPointerFunctionWithArray() throws Exception {
         ContentFeatureSource fs = dataStore.getFeatureSource(tname("jsontest"));
         FilterFactory ff = dataStore.getFilterFactory();
+        pointerGreater(fs, ff, "jsonColumn");
+        if (pgJsonTestSetup.supportJsonB) {
+            pointerGreater(fs, ff, "jsonbColumn");
+        }
+    }
+
+    private void pointerGreater(ContentFeatureSource fs, FilterFactory ff, String column)
+            throws IOException {
         Function pointer =
-                ff.function("jsonPointer", ff.property("jsonColumn"), ff.literal("/arrayValues/1"));
+                ff.function("jsonPointer", ff.property(column), ff.literal("/arrayValues/1"));
         Literal literal = ff.literal(3);
         Filter filter = ff.greater(pointer, literal);
         Query q = new Query(tname("jsontest"), filter);
@@ -173,8 +194,15 @@ public class PostGISJsonOnlineTest extends JDBCTestSupport {
     public void testJSONPointerFunctionIsNotNull() throws Exception {
         ContentFeatureSource fs = dataStore.getFeatureSource(tname("jsontest"));
         FilterFactory ff = dataStore.getFilterFactory();
-        Function pointer =
-                ff.function("jsonPointer", ff.property("jsonColumn"), ff.literal("/title"));
+        pointerNotNull(fs, ff, "jsonColumn");
+        if (pgJsonTestSetup.supportJsonB) {
+            pointerNotNull(fs, ff, "jsonbColumn");
+        }
+    }
+
+    private void pointerNotNull(ContentFeatureSource fs, FilterFactory ff, String column)
+            throws IOException {
+        Function pointer = ff.function("jsonPointer", ff.property(column), ff.literal("/title"));
         Filter filter = ff.not(ff.isNull(pointer));
         Query q = new Query(tname("jsontest"), filter);
         FeatureCollection collection = fs.getFeatures(q);
@@ -193,8 +221,15 @@ public class PostGISJsonOnlineTest extends JDBCTestSupport {
     public void testJSONPointerFunctionIgnoreCase() throws Exception {
         ContentFeatureSource fs = dataStore.getFeatureSource(tname("jsontest"));
         FilterFactory ff = dataStore.getFilterFactory();
-        Function pointer =
-                ff.function("jsonPointer", ff.property("jsonColumn"), ff.literal("/strVal"));
+        pointerEqualsIgnoreCase(fs, ff, "jsonColumn");
+        if (pgJsonTestSetup.supportJsonB) {
+            pointerEqualsIgnoreCase(fs, ff, "jsonbColumn");
+        }
+    }
+
+    private void pointerEqualsIgnoreCase(ContentFeatureSource fs, FilterFactory ff, String column)
+            throws IOException {
+        Function pointer = ff.function("jsonPointer", ff.property(column), ff.literal("/strVal"));
         Filter filter = ff.equal(pointer, ff.literal("StrinGvalue"), false);
 
         Query q = new Query(tname("jsontest"), filter);
@@ -214,17 +249,21 @@ public class PostGISJsonOnlineTest extends JDBCTestSupport {
     public void testJSONPointerFunctionNestedArray() throws Exception {
         ContentFeatureSource fs = dataStore.getFeatureSource(tname("jsontest"));
         FilterFactory ff = dataStore.getFilterFactory();
+        pointerAndDouble(fs, ff, "jsonColumn");
+        if (pgJsonTestSetup.supportJsonB) {
+            pointerAndDouble(fs, ff, "jsonbColumn");
+        }
+    }
+
+    private void pointerAndDouble(ContentFeatureSource fs, FilterFactory ff, String column)
+            throws IOException {
         Function pointer =
                 ff.function(
-                        "jsonPointer",
-                        ff.property("jsonColumn"),
-                        ff.literal("/nestedObj/nestedProp"));
+                        "jsonPointer", ff.property(column), ff.literal("/nestedObj/nestedProp"));
         Filter filter = ff.equals(pointer, ff.literal("stringValue"));
         Function pointer2 =
                 ff.function(
-                        "jsonPointer",
-                        ff.property("jsonColumn"),
-                        ff.literal("/nestedObj/nestedAr/1"));
+                        "jsonPointer", ff.property(column), ff.literal("/nestedObj/nestedAr/1"));
         Filter filter2 = ff.greater(pointer2, ff.literal(5.1));
         And and = ff.and(filter, filter2);
         Query q = new Query(tname("jsontest"), and);
@@ -245,16 +284,24 @@ public class PostGISJsonOnlineTest extends JDBCTestSupport {
     public void testJSONPointerFunctionNestedObject() throws Exception {
         ContentFeatureSource fs = dataStore.getFeatureSource(tname("jsontest"));
         FilterFactory ff = dataStore.getFilterFactory();
+        pointerAndInt(fs, ff, "jsonColumn");
+        if (pgJsonTestSetup.supportJsonB) {
+            pointerAndInt(fs, ff, "jsonbColumn");
+        }
+    }
+
+    private void pointerAndInt(ContentFeatureSource fs, FilterFactory ff, String column)
+            throws IOException {
         Function pointer =
                 ff.function(
                         "jsonPointer",
-                        ff.property("jsonColumn"),
+                        ff.property(column),
                         ff.literal("/nestedObj/nestedObj2/strProp"));
         Filter filter = ff.equals(pointer, ff.literal("stringValue2"));
         Function pointer2 =
                 ff.function(
                         "jsonPointer",
-                        ff.property("jsonColumn"),
+                        ff.property(column),
                         ff.literal("/nestedObj/nestedObj2/numProp"));
         Filter filter2 = ff.greater(pointer2, ff.literal(3));
         And and = ff.and(filter, filter2);
@@ -281,7 +328,17 @@ public class PostGISJsonOnlineTest extends JDBCTestSupport {
         Function concat1 =
                 ff.function("strConcat", ff.property("name"), ff.literal("/nestedObj2/strProp"));
         Function concat2 = ff.function("strConcat", ff.literal("/"), concat1);
-        Function pointer = ff.function("jsonPointer", ff.property("jsonColumn"), concat2);
+        pointerNonEncodable(fs, ff, concat2, "jsonColumn");
+        if (pgJsonTestSetup.supportJsonB) {
+            pointerNonEncodable(fs, ff, concat2, "jsonbColumn");
+        }
+    }
+
+    private void pointerNonEncodable(
+            ContentFeatureSource fs, FilterFactory ff, Function concat2, String column)
+            throws IOException {
+
+        Function pointer = ff.function("jsonPointer", ff.property(column), concat2);
         Filter filter = ff.equals(pointer, ff.literal("stringValue2"));
         Query q = new Query(tname("jsontest"), filter);
         try (FeatureReader reader = fs.getDataStore().getFeatureReader(q, null)) {
@@ -310,7 +367,16 @@ public class PostGISJsonOnlineTest extends JDBCTestSupport {
         Function concat =
                 ff.function(
                         "strConcat", ff.literal("/nestedObj"), ff.literal("/nestedObj2/strProp"));
-        Function pointer = ff.function("jsonPointer", ff.property("jsonColumn"), concat);
+        pointerConstant(fs, ff, concat, "jsonColumn");
+        if (pgJsonTestSetup.supportJsonB) {
+            pointerConstant(fs, ff, concat, "jsonColumn");
+        }
+    }
+
+    private void pointerConstant(
+            ContentFeatureSource fs, FilterFactory ff, Function concat, String column)
+            throws IOException {
+        Function pointer = ff.function("jsonPointer", ff.property(column), concat);
         Filter filter = ff.equals(pointer, ff.literal("stringValue2"));
         Query q = new Query(tname("jsontest"), filter);
         try (FeatureReader reader = fs.getDataStore().getFeatureReader(q, null)) {
@@ -329,14 +395,21 @@ public class PostGISJsonOnlineTest extends JDBCTestSupport {
         }
     }
 
+    @Test
     public void testJSONPointerFunctionLike() throws Exception {
         ContentFeatureSource fs = dataStore.getFeatureSource(tname("jsontest"));
         FilterFactory ff = dataStore.getFilterFactory();
+        pointerLike(fs, ff, "jsonColumn");
+        if (pgJsonTestSetup.supportJsonB) {
+            pointerLike(fs, ff, "jsonbColumn");
+        }
+    }
+
+    private void pointerLike(ContentFeatureSource fs, FilterFactory ff, String column)
+            throws IOException {
         Function pointer =
                 ff.function(
-                        "jsonPointer",
-                        ff.property("jsonColumn"),
-                        ff.literal("/nestedObj/nestedProp"));
+                        "jsonPointer", ff.property(column), ff.literal("/nestedObj/nestedProp"));
         Filter filter = ff.like(pointer, "%Value");
         Query q = new Query(tname("jsontest"), filter);
         FeatureCollection collection = fs.getFeatures(q);
@@ -357,5 +430,63 @@ public class PostGISJsonOnlineTest extends JDBCTestSupport {
         PropertyIsEqualTo filter = ff.equal(ff.property(aname("name")), ff.literal(name), true);
         Query q = new Query(tname("jsontest"), filter);
         return DataUtilities.first(fs.getFeatures(q));
+    }
+
+    @Test
+    public void testJSONArrayContainsFunction() throws Exception {
+        ContentFeatureSource fs = dataStore.getFeatureSource(tname("jsontest"));
+        FilterFactory ff = dataStore.getFilterFactory();
+        arrayContainsTest(fs, ff, "jsonColumn", "/arrayStrValues", "EL2", 1);
+        if (pgJsonTestSetup.supportJsonB) {
+            arrayContainsTest(fs, ff, "jsonbColumn", "/arrayStrValues", "EL2", 1);
+        }
+    }
+
+    @Test
+    public void testJSONArrayContainsFunctionNested() throws Exception {
+        ContentFeatureSource fs = dataStore.getFeatureSource(tname("jsontest"));
+        FilterFactory ff = dataStore.getFilterFactory();
+        arrayContainsTest(fs, ff, "jsonColumn", "/nestedObj/nestedAr", 3, 2);
+        if (pgJsonTestSetup.supportJsonB) {
+            arrayContainsTest(fs, ff, "jsonbColumn", "/nestedObj/nestedAr", 3, 2);
+        }
+    }
+
+    @Test
+    public void testJSONArrayContainsFunctionNestedEmpty() throws Exception {
+        ContentFeatureSource fs = dataStore.getFeatureSource(tname("jsontest"));
+        FilterFactory ff = dataStore.getFilterFactory();
+        arrayContainsTest(fs, ff, "jsonColumn", "/nestedObj/nestedAr", -333, 0);
+        if (pgJsonTestSetup.supportJsonB) {
+            arrayContainsTest(fs, ff, "jsonbColumn", "/nestedObj/nestedAr", -333, 0);
+        }
+    }
+
+    private void arrayContainsTest(
+            ContentFeatureSource fs,
+            FilterFactory ff,
+            String column,
+            String pointer,
+            Object expected,
+            int result)
+            throws IOException {
+        Function jsonArrayContains =
+                ff.function(
+                        "jsonArrayContains",
+                        ff.property(column),
+                        ff.literal(pointer),
+                        ff.literal(expected));
+        Filter filter = ff.equals(jsonArrayContains, ff.literal(true));
+        Query query = new Query(tname("jsontest"), filter);
+        FeatureCollection collection = fs.getFeatures(query);
+        try (FeatureIterator it = collection.features()) {
+            int size = 0;
+            while (it.hasNext()) {
+                Feature f = it.next();
+                assertTrue((boolean) jsonArrayContains.evaluate(f));
+                size++;
+            }
+            assertEquals(result, size);
+        }
     }
 }

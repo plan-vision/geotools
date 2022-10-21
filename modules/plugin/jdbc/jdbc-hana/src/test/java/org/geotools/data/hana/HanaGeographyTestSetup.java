@@ -21,7 +21,6 @@ import org.geotools.jdbc.JDBCGeographyTestSetup;
 import org.geotools.jdbc.JDBCTestSetup;
 
 /** @author Stefan Uhrig, SAP SE */
-@SuppressWarnings("PMD.JUnit4TestShouldUseTestAnnotation") // not yet a JUnit4 test
 public class HanaGeographyTestSetup extends JDBCGeographyTestSetup {
 
     private static final String POINT_TABLE = "geopoint";
@@ -35,7 +34,7 @@ public class HanaGeographyTestSetup extends JDBCGeographyTestSetup {
     @Override
     protected void createGeoPointTable() throws Exception {
         try (Connection conn = getConnection()) {
-            HanaTestUtil htu = new HanaTestUtil(conn);
+            HanaTestUtil htu = new HanaTestUtil(conn, fixture);
             htu.createTestSchema();
 
             String[][] cols = {
@@ -64,7 +63,7 @@ public class HanaGeographyTestSetup extends JDBCGeographyTestSetup {
     @Override
     protected void dropGeoPointTable() throws Exception {
         try (Connection conn = getConnection()) {
-            HanaTestUtil htu = new HanaTestUtil(conn);
+            HanaTestUtil htu = new HanaTestUtil(conn, fixture);
             htu.dropTestTableCascade(POINT_TABLE);
         }
     }
@@ -72,7 +71,7 @@ public class HanaGeographyTestSetup extends JDBCGeographyTestSetup {
     @Override
     protected void createGeoLineTable() throws Exception {
         try (Connection conn = getConnection()) {
-            HanaTestUtil htu = new HanaTestUtil(conn);
+            HanaTestUtil htu = new HanaTestUtil(conn, fixture);
             htu.createTestSchema();
 
             String[][] cols = {
@@ -91,7 +90,7 @@ public class HanaGeographyTestSetup extends JDBCGeographyTestSetup {
     @Override
     protected void dropGeoLineTable() throws Exception {
         try (Connection conn = getConnection()) {
-            HanaTestUtil htu = new HanaTestUtil(conn);
+            HanaTestUtil htu = new HanaTestUtil(conn, fixture);
             htu.dropTestTableCascade(LINE_TABLE);
         }
     }

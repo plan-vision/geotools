@@ -167,7 +167,7 @@ public class PropertyDataStoreTest {
         }
 
         File dir = new File("propertyTestData");
-        File list[] = dir.listFiles();
+        File[] list = dir.listFiles();
         for (File file : list) {
             file.delete();
         }
@@ -176,7 +176,7 @@ public class PropertyDataStoreTest {
 
     @Test
     public void testGetNames() throws IOException {
-        String names[] = store.getTypeNames();
+        String[] names = store.getTypeNames();
         Arrays.sort(names);
         Assert.assertEquals(4, names.length);
         Assert.assertEquals("dots.in.name", names[0]);
@@ -246,16 +246,13 @@ public class PropertyDataStoreTest {
     public void testGetFeatureReaderString()
             throws NoSuchElementException, IOException, IllegalAttributeException {
         Query query = new Query("road");
-        FeatureReader<SimpleFeatureType, SimpleFeature> reader =
-                store.getFeatureReader(query, Transaction.AUTO_COMMIT);
         int count = 0;
-        try {
+        try (FeatureReader<SimpleFeatureType, SimpleFeature> reader =
+                store.getFeatureReader(query, Transaction.AUTO_COMMIT)) {
             while (reader.hasNext()) {
                 reader.next();
                 count++;
             }
-        } finally {
-            reader.close();
         }
         Assert.assertEquals(5, count);
     }
@@ -469,15 +466,12 @@ public class PropertyDataStoreTest {
     public void testGetFeatureSource() throws Exception {
         SimpleFeatureSource road = store.getFeatureSource("road");
         SimpleFeatureCollection features = road.getFeatures();
-        SimpleFeatureIterator reader = features.features();
         List<String> list = new ArrayList<>();
-        try {
+        try (SimpleFeatureIterator reader = features.features()) {
             while (reader.hasNext()) {
                 SimpleFeature next = reader.next();
                 list.add(next.getID());
             }
-        } finally {
-            reader.close();
         }
         Assert.assertEquals("[fid1, fid2, fid3, fid4, fid5]", list.toString());
 
@@ -781,7 +775,7 @@ public class PropertyDataStoreTest {
         q.setSortBy(ff.sort("id", SortOrder.DESCENDING));
 
         ContentFeatureCollection fc = fs.getFeatures(q);
-        String[] expectedNames = new String[] {"", "justin", "dave", "brent", "jody"};
+        String[] expectedNames = {"", "justin", "dave", "brent", "jody"};
         try (SimpleFeatureIterator fi = fc.features()) {
             int i = 0;
             while (fi.hasNext()) {

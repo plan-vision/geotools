@@ -297,7 +297,10 @@ public class BaseSubmosaicProducer implements SubmosaicProducer {
                 granuleHasAlpha = granule.getColorModel().hasAlpha();
             }
             assert granuleHasAlpha;
+        } else if (!rasterLayerResponse.getFootprintBehavior().handleFootprints()) {
+            granuleHasAlpha = granule.getColorModel().hasAlpha();
         }
+
         PlanarImage alphaChannel = null;
         if (granuleHasAlpha || doInputTransparency) {
             ImageWorker w = new ImageWorker(granule);
@@ -308,7 +311,7 @@ public class BaseSubmosaicProducer implements SubmosaicProducer {
             }
             // doing this here gives the guarantee that I get the correct index for the transparency
             // band
-            int[] alphaIndex = new int[] {granule.getColorModel().getNumComponents() - 1};
+            int[] alphaIndex = {granule.getColorModel().getNumComponents() - 1};
             assert alphaIndex[0] < granule.getSampleModel().getNumBands();
 
             //

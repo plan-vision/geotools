@@ -21,7 +21,7 @@ If this doesn't work you can try this more brutal, System wide approach...
 See also:
 
 * :doc:`/library/referencing/order`
-* A `Jira issue <https://osgeo-org.atlassian.net/projects/GEOT-2995>`_ discussing this problem
+* :geot:`2995`
 
 Q: How to choose an EPSG Authority?
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
@@ -29,12 +29,12 @@ Q: How to choose an EPSG Authority?
 The referencing module does not do very much out of the box - it needs someone
  to tell it what all the funny codes mean (such as "EPSG:4326").
 
-You need to choose a single EPSG jar to have on your classpath; if you have
-several EPSG jars on your classpath you will get a FactoryException.
+You need to choose a EPSG jar to have on your classpath; if you have
+several EPSG jars on your classpath you might end up with a conflict.
   
 For most needs just use the ``gt-epsg-hsql`` plugin:
 
-* ``gt-epsgh-hsql``: will unpack an HSQL database containing the official EPSG
+* ``gt-epsg-hsql``: will unpack an HSQL database containing the official EPSG
   database into a temp directory, a great solution for desktop applications.
 
 There are several alternatives:
@@ -43,13 +43,8 @@ There are several alternatives:
   official and correct. A great solution for applets
 * ``gt-epsg-postgres``: uses the official EPSG database which you have to load
   into PostgreSQL yourself. A great solution for Java EE applications.  
-* ``gt-epsg-access``: directly use an the official EPSG database as distributed.
+* ``gt-epsg-access``: directly use the official EPSG database as distributed.
   A great solution for windows users that need the latest official database.
-
-Unsupported:
-
-* ``gt-epsg-oracle``: Load the official EPSG database into oracle to use this plugin
-* **gt-epsgh-h2**: use this popular pure java database
 
 Q: Are other authorities other than EPSG supported?
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
@@ -89,7 +84,7 @@ Q: Bursa-Wolf Parameters Required?
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 GeoTools performs datum shift using Bursa-Wolf parameters at this time. If
-these cannot be determined from your CoordinateReferenceSystem we will be
+these cannot be determined from your ``CoordinateReferenceSystem`` we will be
 unable to sort out a transform.
   
 Most of the time this does not matter as users work with their information in
@@ -97,8 +92,8 @@ the same datum it was collected in.
 
 * A: Lenient
   
-  A quick fix involves setting "lenient " to true when searching for a
-  MathTransform.::
+  A quick fix involves setting "lenient" to true when searching for a
+  ``MathTransform``.::
       
       MathTransform transform = CRS.findMathTransform(sourceCRS, targetCRS, true);
   
@@ -107,7 +102,7 @@ the same datum it was collected in.
   
 * A: Match your PRJ file
   
-  Usually this occurs when you have loaded a CoordinateReferenceSystem from a
+  Usually this occurs when you have loaded a ``CoordinateReferenceSystem`` from a
   ``prj`` file included with your shapefile.
   
   To fix look up the complete definition in the EPSG database using the CRS
@@ -121,7 +116,7 @@ the same datum it was collected in.
   NADCON with the following limitations:
 
   * Use of NADCON grids has not been integrated with
-    DefaultCoordinateOperationFactory (so you would need to set it up by hand)
+    ``DefaultCoordinateOperationFactory`` (so you would need to set it up by hand)
   * The general case of a Datum shift provided by a grid is not covered, for
     example Spanish Datum Changes ED50-ETRS89 will not work
 
@@ -140,11 +135,11 @@ as is often done in CAD programs.
 In a GIS application we can only wish they are X,Y. They are actually LAT/LONG or
 LONG/LAT or angle,angle,angle or something crazy like time.
   
-Given two CoordinateReferenceSystems you can make a math transform from one to the
+Given two ``CoordinateReferenceSystems`` you can make a math transform from one to the
 other. So you could take angle/angle/angle and munch it into something you like for
 3D or 2D display.
 
-We will get into this again when you actually have some data - the CoordinateReferenceSystem will tells you what the data "means".
+We will get into this again when you actually have some data - the ``CoordinateReferenceSystem`` will tells you what the data "means".
 
  Much like 3.0 and "three meters". The first is a number, and the second one means a length.
 
@@ -157,8 +152,48 @@ their dependencies such as units.
 Q: I cannot find an EPSG Code?
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-You need to have one, and only one, of the EPSG plugins on your CLASSPATH. We
-recommend   ``epsg-hsql`` for most uses.
+You need to have at least one of the EPSG plugins at your CLASSPATH. To check which one are available and used, 
+you could turn log level to FINE for ``org.geotools.referencing`` or ``org.geotools.referencing.factory``.
+If none of the EPSG plugins at your CLASSPATH have a definition for your code,
+you could add your own definitions for that EPSG Code.
+
+Q: How do I add my own EPSG Codes?
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+The   ``gt-epsg-wkt`` plugin is intended to be used on its own and should not be combined
+with any of the other   ``gt-epsg-h2``  or   ``gt-epsg-hsql`` plugins as they will end up in
+conflict.
+
+If you want to add a few more definitions over and above those provided by the
+official database (i.e. ``gt-epsg-hsql`` or ``gt-epsg-h2``)  please use the following (taken from the
+uDig application)::
+  
+     URL url = new URL(url, "epsg.properties");
+     // application directory or user directory?
+     // where you are looking for epsg.properties
+     if ("file".equals(proposed.getProtocol())) {
+         File file = new File(proposed.toURI());
+         if (file.exists()) {
+             epsg = file.toURI().toURL();
+         }
+     }
+     // you may try several locations...
+     if (epsg != null) {
+         Hints hints = new Hints(Hints.CRS_AUTHORITY_FACTORY, PropertyAuthorityFactory.class);
+         ReferencingFactoryContainer referencingFactoryContainer =
+                    ReferencingFactoryContainer.instance(hints);
+        
+        PropertyAuthorityFactory factory = new PropertyAuthorityFactory(
+                           referencingFactoryContainer, Citations.fromName("EPSG"), epsg);
+        
+        ReferencingFactoryFinder.addAuthorityFactory(factory);
+        ReferencingFactoryFinder.scanForPlugins(); // hook everything up
+     }
+  
+Here is an example :download:`epsg.properties </artifacts/epsg.properties>` file used by uDig:
+  
+   .. literalinclude:: /artifacts/epsg.properties
+
 
 Q: I cannot re-project my shapefile (missing "Bursa wolf parameters")?
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
@@ -216,10 +251,10 @@ For a JTS Envelope use the **JTS** utility class:
    :start-after: // transformEnvelope start
    :end-before: // transformEnvelope end
 
-Q: How to Transform a GridCoverage?
-^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+Q: How to Transform a ``GridCoverage``?
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-You can use a resample operation to produce a GridCoverage in the desired projection.
+You can use a resample operation to produce a ``GridCoverage`` in the desired projection.
 
 Q: How do I extend the system with my own custom CRS?
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
@@ -235,7 +270,7 @@ You can use the ``gt-epsg-wkt`` plugin as an example of the following options:
 * Through a property file and programmatic registration of the factory
   
   You can create a file with your CRS in the WKT format, instantiate a 
-  PropertyAuthorityFactory with that CRS:
+  ``PropertyAuthorityFactory`` with that CRS:
   
   1. Create a property file with your CRS definitions in Well-Known Text (WKT) format.
   2. Each line of the file should be ``someUniqueCodeValue = crsInWKT`` .
@@ -253,43 +288,7 @@ You can use the ``gt-epsg-wkt`` plugin as an example of the following options:
 * Through a property file and automatic registration of the factory
   
   A more sophisticated approach changes step 3 to create a new class which both extends
-  PropertyAuthorityFactory and has a no argument constructor which calls the parent
+  ``PropertyAuthorityFactory`` and has a no argument constructor which calls the parent
   with the right URI argument. Such a class will be picked up automatically when the
   factory system is initialized so step 4 in the list above is no longer necessary.
 
-Q: How to I add my own EPSG Codes?
-^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-
-The   ``gt-epsg-wkt`` plugin is intended to be used on its own and should not be combined
-with any of the other   ``gt-epsg-h2``  or   ``gt-epsg-hsql`` plugins as they will end up in
-conflict.
-
-If you want to add a few more definitions over and above those provided by the
-official database (i.e. ``gt-epsg-hsql`` or ``gt-epsg-h2``)  please use the following (taken from the
-uDig application)::
-  
-     URL url = new URL(url, "epsg.properties");
-     // application directory or user directory?
-     // where you are looking for epsg.properties
-     if ("file".equals(proposed.getProtocol())) {
-         File file = new File(proposed.toURI());
-         if (file.exists()) {
-             epsg = file.toURI().toURL();
-         }
-     }
-     // you may try several locations...
-     if (epsg != null) {
-         Hints hints = new Hints(Hints.CRS_AUTHORITY_FACTORY, PropertyAuthorityFactory.class);
-         ReferencingFactoryContainer referencingFactoryContainer =
-                    ReferencingFactoryContainer.instance(hints);
-        
-        PropertyAuthorityFactory factory = new PropertyAuthorityFactory(
-                           referencingFactoryContainer, Citations.fromName("EPSG"), epsg);
-        
-        ReferencingFactoryFinder.addAuthorityFactory(factory);
-        ReferencingFactoryFinder.scanForPlugins(); // hook everything up
-     }
-  
-Here is an example ::download::`epsg.properties </artifacts/epsg.properties>`_. file used by uDig:
-  
-   .. literalinclude:: /artifacts/epsg.properties

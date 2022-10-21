@@ -100,17 +100,15 @@ public final class JP2KReader extends AbstractGridCoverage2DReader implements Gr
     /** The system-dependent default name-separator character. */
     private static final char SEPARATOR = File.separatorChar;
 
-    private static final short[] GEOJP2_UUID =
-            new short[] {
-                0xb1, 0x4b, 0xf8, 0xbd, 0x08, 0x3d, 0x4b, 0x43, 0xa5, 0xae, 0x8c, 0xd7, 0xd5, 0xa6,
-                0xce, 0x03
-            };
+    private static final short[] GEOJP2_UUID = {
+        0xb1, 0x4b, 0xf8, 0xbd, 0x08, 0x3d, 0x4b, 0x43, 0xa5, 0xae, 0x8c, 0xd7, 0xd5, 0xa6, 0xce,
+        0x03
+    };
 
-    private static final short[] MSIG_WORLDFILEBOX_UUID =
-            new short[] {
-                0x96, 0xa9, 0xf1, 0xf1, 0xdc, 0x98, 0x40, 0x2d, 0xa7, 0xae, 0xd6, 0x8e, 0x34, 0x45,
-                0x18, 0x09
-            };
+    private static final short[] MSIG_WORLDFILEBOX_UUID = {
+        0x96, 0xa9, 0xf1, 0xf1, 0xdc, 0x98, 0x40, 0x2d, 0xa7, 0xae, 0xd6, 0x8e, 0x34, 0x45, 0x18,
+        0x09
+    };
 
     private static final int WORLD_FILE_INTERPRETATION_PIXEL_CORNER = 1;
 
@@ -556,20 +554,18 @@ public final class JP2KReader extends AbstractGridCoverage2DReader implements Gr
 
     /** Get the degenerate GeoTIFF to obtain the related CoordinateReferenceSystem tags */
     private void getGeoJP2(final UUIDBoxMetadataNode uuid) throws IOException {
+        try (ByteArrayInputStream inputStream = new ByteArrayInputStream(uuid.getData())) {
+            final TIFFImageReader tiffreader =
+                    (TIFFImageReader) new TIFFImageReaderSpi().createReaderInstance();
+            tiffreader.setInput(ImageIO.createImageInputStream(inputStream));
+            final IIOMetadata tiffmetadata = tiffreader.getImageMetadata(0);
 
-        CoordinateReferenceSystem coordinateReferenceSystem = null;
-        final ByteArrayInputStream inputStream = new ByteArrayInputStream(uuid.getData());
-        final TIFFImageReader tiffreader =
-                (TIFFImageReader) new TIFFImageReaderSpi().createReaderInstance();
-        tiffreader.setInput(ImageIO.createImageInputStream(inputStream));
-        final IIOMetadata tiffmetadata = tiffreader.getImageMetadata(0);
-        try {
             final GeoTiffIIOMetadataDecoder metadataDecoder =
                     new GeoTiffIIOMetadataDecoder(tiffmetadata);
             final GeoTiffMetadata2CRSAdapter adapter = new GeoTiffMetadata2CRSAdapter(hints);
-            coordinateReferenceSystem = adapter.createCoordinateSystem(metadataDecoder);
-            if (coordinateReferenceSystem != null) {
-                if (this.crs == null) this.crs = coordinateReferenceSystem;
+            CoordinateReferenceSystem crs = adapter.createCoordinateSystem(metadataDecoder);
+            if (crs != null) {
+                if (this.crs == null) this.crs = crs;
             }
             if (this.raster2Model == null) {
                 this.raster2Model = GeoTiffMetadata2CRSAdapter.getRasterToModel(metadataDecoder);
@@ -578,18 +574,9 @@ public final class JP2KReader extends AbstractGridCoverage2DReader implements Gr
                 tempTransform.translate(-0.5, -0.5);
                 setEnvelopeFromTransform(tempTransform);
             }
-
         } catch (Exception e) {
             if (LOGGER.isLoggable(FINE))
                 LOGGER.log(FINE, "Unable to parse CRS from underlying TIFF", e);
-            coordinateReferenceSystem = null;
-        } finally {
-            if (inputStream != null)
-                try {
-                    inputStream.close();
-                } catch (IOException ioe) {
-                    // Eat exception.
-                }
         }
     }
 

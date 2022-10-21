@@ -79,13 +79,13 @@ public abstract class MongoFeatureSourceTest extends MongoTestSupport {
 
         assertEquals(1, source.getCount(q));
         assertEquals(
-                new ReferencedEnvelope(2d, 0d, 2d, 0d, DefaultGeographicCRS.WGS84),
+                new ReferencedEnvelope(2d, 2d, 2d, 2d, DefaultGeographicCRS.WGS84),
                 source.getBounds(q));
 
         SimpleFeatureCollection features = source.getFeatures(q);
         try (SimpleFeatureIterator it = features.features()) {
             assertTrue(it.hasNext());
-            assertFeature(it.next(), 0);
+            assertFeature(it.next(), 2);
         }
     }
 
@@ -165,16 +165,13 @@ public abstract class MongoFeatureSourceTest extends MongoTestSupport {
 
         assertEquals(2, source.getCount(q));
         assertEquals(
-                new ReferencedEnvelope(0d, 2d, 0d, 2d, DefaultGeographicCRS.WGS84),
+                new ReferencedEnvelope(1d, 2d, 1d, 2d, DefaultGeographicCRS.WGS84),
                 source.getBounds(q));
 
         SimpleFeatureCollection features = source.getFeatures(q);
-        SimpleFeatureIterator it = features.features();
-        try {
+        try (SimpleFeatureIterator it = features.features()) {
             assertTrue(it.hasNext());
-            assertFeature(it.next(), 0);
-        } finally {
-            it.close();
+            assertFeature(it.next(), 1);
         }
 
         // test again passing Date object as literal
@@ -186,14 +183,11 @@ public abstract class MongoFeatureSourceTest extends MongoTestSupport {
 
         assertEquals(2, source.getCount(q));
         assertEquals(
-                new ReferencedEnvelope(0d, 2d, 0d, 2d, DefaultGeographicCRS.WGS84),
+                new ReferencedEnvelope(1d, 2d, 1d, 2d, DefaultGeographicCRS.WGS84),
                 source.getBounds(q));
-        it = source.getFeatures(q).features();
-        try {
+        try (SimpleFeatureIterator it = source.getFeatures(q).features()) {
             assertTrue(it.hasNext());
-            assertFeature(it.next(), 0);
-        } finally {
-            it.close();
+            assertFeature(it.next(), 1);
         }
 
         // test no-match filter
@@ -219,7 +213,7 @@ public abstract class MongoFeatureSourceTest extends MongoTestSupport {
 
         assertEquals(1, source.getCount(q));
         assertEquals(
-                new ReferencedEnvelope(0d, 2d, 0d, 2d, DefaultGeographicCRS.WGS84),
+                new ReferencedEnvelope(0d, 0d, 0d, 0d, DefaultGeographicCRS.WGS84),
                 source.getBounds(q));
 
         SimpleFeatureCollection features = source.getFeatures(q);
@@ -303,10 +297,9 @@ public abstract class MongoFeatureSourceTest extends MongoTestSupport {
 
     public void testSingleSortBy() throws Exception {
         FilterFactory2 ff = CommonFactoryFinder.getFilterFactory2();
-        SortBy[] sorts =
-                new SortBy[] {
-                    ff.sort("properties.doubleProperty", SortOrder.DESCENDING),
-                };
+        SortBy[] sorts = {
+            ff.sort("properties.doubleProperty", SortOrder.DESCENDING),
+        };
 
         SimpleFeatureSource source = dataStore.getFeatureSource("ft1");
         assertTrue(source.getQueryCapabilities().supportsSorting(sorts));
@@ -334,11 +327,10 @@ public abstract class MongoFeatureSourceTest extends MongoTestSupport {
         // sort before desc on string value a,b,b obtaining b,b,a
         // then asc on date 2015-01-01T00:00, 2015-01-01T16:30, 2015-01-01T21:30
         // obtaining second, third, one
-        SortBy[] sorts =
-                new SortBy[] {
-                    ff.sort("properties.stringProperty2", SortOrder.DESCENDING),
-                    ff.sort("properties.dateProperty", SortOrder.ASCENDING),
-                };
+        SortBy[] sorts = {
+            ff.sort("properties.stringProperty2", SortOrder.DESCENDING),
+            ff.sort("properties.dateProperty", SortOrder.ASCENDING),
+        };
 
         SimpleFeatureSource source = dataStore.getFeatureSource("ft1");
         assertTrue(source.getQueryCapabilities().supportsSorting(sorts));
@@ -369,11 +361,10 @@ public abstract class MongoFeatureSourceTest extends MongoTestSupport {
     public void testTwoSortByWithNullableAttribute() throws Exception {
         FilterFactory2 ff = CommonFactoryFinder.getFilterFactory2();
         // sort before on nullable so that second sort overcome
-        SortBy[] sorts =
-                new SortBy[] {
-                    ff.sort("properties.nullableAttribute", SortOrder.DESCENDING),
-                    ff.sort("properties.dateProperty", SortOrder.ASCENDING),
-                };
+        SortBy[] sorts = {
+            ff.sort("properties.nullableAttribute", SortOrder.DESCENDING),
+            ff.sort("properties.dateProperty", SortOrder.ASCENDING),
+        };
 
         SimpleFeatureSource source = dataStore.getFeatureSource("ft1");
         assertTrue(source.getQueryCapabilities().supportsSorting(sorts));
@@ -397,7 +388,7 @@ public abstract class MongoFeatureSourceTest extends MongoTestSupport {
     }
 
     public void testNullSortBy() throws Exception {
-        SortBy[] sorts = new SortBy[] {SortBy.NATURAL_ORDER};
+        SortBy[] sorts = {SortBy.NATURAL_ORDER};
 
         SimpleFeatureSource source = dataStore.getFeatureSource("ft1");
         Query q = new Query("ft1", Filter.INCLUDE);

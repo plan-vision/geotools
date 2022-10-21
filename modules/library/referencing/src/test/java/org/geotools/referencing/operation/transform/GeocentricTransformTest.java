@@ -17,7 +17,7 @@
 package org.geotools.referencing.operation.transform;
 
 import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertNotEquals;
 import static org.junit.Assert.assertSame;
 import static org.junit.Assert.assertTrue;
 
@@ -105,7 +105,7 @@ public final class GeocentricTransformTest extends TransformTestBase {
         final double circumference = (radius * 1.00000001) * (2 * Math.PI);
         final DefaultEllipsoid s =
                 DefaultEllipsoid.createEllipsoid("Sphere", radius, radius, e.getAxisUnit());
-        assertFalse("Spheroid class", DefaultEllipsoid.class.equals(s.getClass()));
+        assertNotEquals("Spheroid class", DefaultEllipsoid.class, s.getClass());
         for (double i = 0; i <= 180; i += 1) {
             final double base = 360 * random.nextDouble() - 180;
             assertEquals(
@@ -152,8 +152,8 @@ public final class GeocentricTransformTest extends TransformTestBase {
          * Construct an array of 850 random points. The first 8 points
          * are initialized to know values. Other points are left random.
          */
-        final double cartesianDistance[] = new double[4];
-        final double orthodromicDistance[] = new double[4];
+        final double[] cartesianDistance = new double[4];
+        final double[] orthodromicDistance = new double[4];
         final double[] array0 = new double[900]; // Must be divisible by 3.
         for (int i = 0; i < array0.length; i++) {
             final int range;
@@ -230,10 +230,8 @@ public final class GeocentricTransformTest extends TransformTestBase {
          */
         for (int i = 0; i < array0.length / 6; i++) {
             final int base = i * 6;
-            final double[] pt1 =
-                    new double[] {array1[base + 0], array1[base + 1], array1[base + 2]};
-            final double[] pt2 =
-                    new double[] {array1[base + 3], array1[base + 4], array1[base + 5]};
+            final double[] pt1 = {array1[base + 0], array1[base + 1], array1[base + 2]};
+            final double[] pt2 = {array1[base + 3], array1[base + 4], array1[base + 5]};
 
             double dX = Math.abs(pt1[0] - pt2[0]);
             double dY = Math.abs(pt1[1] - pt2[1]);

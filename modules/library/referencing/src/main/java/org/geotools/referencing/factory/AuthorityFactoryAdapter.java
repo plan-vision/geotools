@@ -96,13 +96,12 @@ import org.opengis.util.InternationalString;
  */
 public class AuthorityFactoryAdapter extends AbstractAuthorityFactory implements OptionalFactory {
     /** List of hint keys related to authority factories. */
-    private static final Hints.Key[] TYPES =
-            new Hints.Key[] {
-                Hints.CRS_AUTHORITY_FACTORY,
-                Hints.CS_AUTHORITY_FACTORY,
-                Hints.DATUM_AUTHORITY_FACTORY,
-                Hints.COORDINATE_OPERATION_AUTHORITY_FACTORY
-            };
+    private static final Hints.Key[] TYPES = {
+        Hints.CRS_AUTHORITY_FACTORY,
+        Hints.CS_AUTHORITY_FACTORY,
+        Hints.DATUM_AUTHORITY_FACTORY,
+        Hints.COORDINATE_OPERATION_AUTHORITY_FACTORY
+    };
 
     /** The underlying {@linkplain Datum datum} authority factory, or {@code null} if none. */
     final DatumAuthorityFactory datumFactory;
@@ -807,9 +806,12 @@ public class AuthorityFactoryAdapter extends AbstractAuthorityFactory implements
     @Override
     public CoordinateReferenceSystem createCoordinateReferenceSystem(final String code)
             throws FactoryException {
-        return replace(
-                getCRSAuthorityFactory(code)
-                        .createCoordinateReferenceSystem(toBackingFactoryCode(code)));
+        final CRSAuthorityFactory factory = getCRSAuthorityFactory(code);
+        final CoordinateReferenceSystem crs =
+                replace(factory.createCoordinateReferenceSystem(toBackingFactoryCode(code)));
+        notifySuccess("createCoordinateReferenceSystem", code, factory, crs);
+
+        return crs;
     }
 
     /**
@@ -1003,6 +1005,23 @@ public class AuthorityFactoryAdapter extends AbstractAuthorityFactory implements
     }
 
     /**
+     * Log a message when a CRS is found. Child objects that doesn't create their own CRS-objects
+     * should not report.
+     */
+    protected void notifySuccess(
+            final String method,
+            final String code,
+            final CRSAuthorityFactory factory,
+            final CoordinateReferenceSystem crs) {
+        if (crs != null && LOGGER.isLoggable(Level.FINE)) {
+            LOGGER.fine(
+                    String.format(
+                            "CRS for code:%s found by factory:%s",
+                            code, factory.getClass().getName()));
+        }
+    }
+
+    /**
      * A {@link IdentifiedObjectFinder} which tests {@linkplain
      * AuthorityFactoryAdapter#replaceObject modified objects} in addition of original object.
      */
@@ -1075,7 +1094,6 @@ public class AuthorityFactoryAdapter extends AbstractAuthorityFactory implements
      * @throws IllegalArgumentException if the specified {@code type} is invalid.
      * @throws FactoryException if no suitable factory were found.
      */
-    @SuppressWarnings("unchecked")
     <T extends AuthorityFactory> T getAuthorityFactory(final Class<T> type, final String code)
             throws FactoryException {
         final AuthorityFactory f;
@@ -1255,8 +1273,9 @@ public class AuthorityFactoryAdapter extends AbstractAuthorityFactory implements
     }
 
     /** Returns {@code true} if the {@link #toBackingFactoryCode} method is overriden. */
+    @SuppressWarnings("ReturnValueIgnored")
     final boolean isCodeMethodOverriden() {
-        final Class<?>[] arguments = new Class[] {String.class};
+        final Class<?>[] arguments = {String.class};
         for (Class<?> type = getClass();
                 !AuthorityFactoryAdapter.class.equals(type);
                 type = type.getSuperclass()) {

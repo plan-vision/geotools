@@ -40,6 +40,7 @@ public class BufferFeatureCollectionTest {
     FilterFactory ff = CommonFactoryFinder.getFilterFactory(null);
 
     @Test
+    @SuppressWarnings("PMD.SimplifiableTestAssertion") // geometry equality
     public void testExecutePoint() throws Exception {
         SimpleFeatureTypeBuilder tb = new SimpleFeatureTypeBuilder();
         tb.setName("featureType");
@@ -74,6 +75,7 @@ public class BufferFeatureCollectionTest {
     }
 
     @Test
+    @SuppressWarnings("PMD.SimplifiableTestAssertion") // geometry equality
     public void testExecuteLineString() throws Exception {
         SimpleFeatureTypeBuilder tb = new SimpleFeatureTypeBuilder();
         tb.setName("featureType");
@@ -85,7 +87,7 @@ public class BufferFeatureCollectionTest {
 
         DefaultFeatureCollection features = new DefaultFeatureCollection(null, b.getFeatureType());
         for (int numFeatures = 0; numFeatures < 5; numFeatures++) {
-            Coordinate array[] = new Coordinate[4];
+            Coordinate[] array = new Coordinate[4];
             int j = 0;
             for (int i = 0 + numFeatures; i < 4 + numFeatures; i++) {
                 array[j] = new Coordinate(i, i);
@@ -119,6 +121,7 @@ public class BufferFeatureCollectionTest {
     }
 
     @Test
+    @SuppressWarnings("PMD.SimplifiableTestAssertion") // geometry equality
     public void testExecutePolygon() throws Exception {
         SimpleFeatureTypeBuilder tb = new SimpleFeatureTypeBuilder();
         tb.setName("featureType");
@@ -130,7 +133,7 @@ public class BufferFeatureCollectionTest {
 
         DefaultFeatureCollection features = new DefaultFeatureCollection(null, b.getFeatureType());
         for (int numFeatures = 0; numFeatures < 5; numFeatures++) {
-            Coordinate array[] = new Coordinate[4];
+            Coordinate[] array = new Coordinate[4];
             int j = 0;
             for (int i = 0 + numFeatures; i < 3 + numFeatures; i++) {
                 array[j] = new Coordinate(i, i);
@@ -169,6 +172,7 @@ public class BufferFeatureCollectionTest {
     }
 
     @Test
+    @SuppressWarnings("PMD.SimplifiableTestAssertion") // geometry equality
     public void testExecuteBufferAttribute() throws Exception {
         SimpleFeatureTypeBuilder tb = new SimpleFeatureTypeBuilder();
         tb.setName("featureType");
@@ -181,7 +185,7 @@ public class BufferFeatureCollectionTest {
 
         ListFeatureCollection features = new ListFeatureCollection(b.getFeatureType());
         for (int numFeatures = 0; numFeatures < 5; numFeatures++) {
-            Coordinate array[] = new Coordinate[4];
+            Coordinate[] array = new Coordinate[4];
             int j = 0;
             for (int i = 0 + numFeatures; i < 3 + numFeatures; i++) {
                 array[j] = new Coordinate(i, i);

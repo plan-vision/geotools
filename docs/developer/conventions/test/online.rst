@@ -132,30 +132,33 @@ _________
 Oracle Database Express Edition (XE) is an unsupported version
 of Oracle Database and can be used for free (`FAQ / details <https://www.oracle.com/database/technologies/appdev/xe/faq.html>`_).
 You can use the following to start a dockerized instance of Oracle Express (unfortunately Oracle does not provide an
-official docker image so we are using one from the community). ::
+official docker image so we are using one from the `community <https://hub.docker.com/r/gvenzl/oracle-xe>`_). ::
 
-    docker pull pvargacl/oracle-xe-18.4.0:latest
-    docker run --rm -p 1521:1521 --name geotools -h geotools -d pvargacl/oracle-xe-18.4.0:latest
+    docker pull gvenzl/oracle-xe:21.3.0
+    docker run --rm -p 1521:1521 --name geotools -h geotools -d gvenzl/oracle-xe:21.3.0
 
 It will take up to a few minutes for the database to start up. In case you need to change the portmappings eg.
-to have Oracle listen on port ``15211`` instead of the default ``1521`` use ``-p 15211:1521`` instead of ``-p 15211:1521``.
+to have Oracle listen on port ``15211`` instead of the default ``1521`` use ``-p 15211:1521`` instead of ``-p 1521:1521``.
 
 Note that the ``--rm`` option will delete the container after stopping it, the image is preserved so you won't need
 to pull it next time, but you may want to preserve the container so you don't have to build a new one. In that case see below::
 
-    docker run -p 1521:1521 --name geotools -h geotools -d pvargacl/oracle-xe-18.4.0:latest
+    docker run -p 1521:1521 --name geotools -h geotools -d gvenzl/oracle-xe:21.3.0
     # stopping
     docker stop geotools
     # starting
     docker start geotools
 
-Also note that the Oracle docker image and container will take quite a few gigabytes of disk space on your computer.
+Also note that:
+  * the Oracle docker image and container will take quite a few gigabytes of disk space on your computer.
+  * this docker image does not have Java installed, which means you can not use Java stored procedures such
+    as ``SDO_GEOMETRY('POINT (1.0 2.0)', 4326))``. You could use the docker tag ``21.3.0-full`` for that.
 
 To create a user and schema for testing you can use the following command::
 
     docker exec -i geotools sqlplus -l system/oracle@//localhost:1521/XE < build/ci/oracle/setup-oracle.sql
 
-The ``setup-oracle.sql`` can be found in `.travis/ <https://github.com/geotools/geotools/tree/main/.travis>`_ it consists of::
+The ``setup-oracle.sql`` can be found in `build/ci/oracle/ <https://github.com/ghttps://github.com/geotools/geotools/tree/main/build/ci/oracle>`_ it consists of::
 
     ALTER SESSION SET "_ORACLE_SCRIPT"=true;
     CREATE USER "GEOTOOLS" IDENTIFIED BY "geotools"  DEFAULT TABLESPACE "USERS" TEMPORARY TABLESPACE "TEMP";
@@ -239,10 +242,10 @@ ____________________
 The PostGIS project provides official docker `images on dockerhub <https://registry.hub.docker.com/r/postgis/postgis>`_.
 The project provides a long list of version combinations (tags).
 
-Use the following to create and start a PostgreSQL 12 container with PostGIS 3 listening on port 54321:::
+Use the following to create and start a PostgreSQL 14 container with PostGIS 3 listening on port 54321:::
 
-    docker pull postgis/postgis:12-3.0
-    docker run -e POSTGRES_PASSWORD=postgres -e POSTGRES_DB=geotools --rm -p 54321:5432 --name geotools -h geotools -d postgis/postgis:12-3.0
+    docker pull postgis/postgis:14-3.2
+    docker run -e POSTGRES_PASSWORD=postgres -e POSTGRES_DB=geotools --rm -p 54321:5432 --name geotools -h geotools -d postgis/postgis:14-3.2
 
 Note that the ``--rm`` option will delete the container after stopping it, the image is preserved so you won't need
 to pull it next time, but you may want to preserve the container so you don't have to build a new one.
@@ -261,7 +264,7 @@ The appropriate fixture for using the above database schema would be::
     host=127.0.0.1
     driver=org.postgresql.Driver
 
-In file ``~/.geotools/sqlserver.properties``
+In file ``~/.geotools/postgis.properties``
 
 To run the online test for the ``gt-jdbc-postgis`` module use the following Maven command:::
 
@@ -315,10 +318,10 @@ ____________________
 
 Db2 images are provided by `ibmcom on dockerhub <https://hub.docker.com/r/ibmcom/db2/>`_.
 
-Use the following to create and start a Db2 11.5.5.0 container listening on port 50000:::
+Use the following to create and start a Db2 db2:11.5.6.0a container listening on port 50000:::
 
-    docker pull ibmcom/db2:11.5.5.0
-    docker run -e 'LICENSE=accept' -e 'DB2INST1_PASSWORD=db2inst1' -e 'DBNAME=geotools' -e 'ARCHIVE_LOGS=false' --rm -p 50000:50000 --name geotools --privileged=true -d ibmcom/db2:11.5.5.0
+    docker pull ibmcom/db2:db2:11.5.6.0a
+    docker run -e 'LICENSE=accept' -e 'DB2INST1_PASSWORD=db2inst1' -e 'DBNAME=geotools' -e 'ARCHIVE_LOGS=false' --rm -p 50000:50000 --name geotools --privileged=true -d ibmcom/db2:11.5.6.0a
 
 Note that the ``--rm`` option will delete the container after stopping it, the image is preserved so you won't need
 to pull it next time, but you may want to preserve the container or map some volumes so you don't have to setup a new one.
@@ -355,5 +358,49 @@ Shell scripts ``start-db2.sh`` and ``setup-db2.sh`` for the above steps are prov
 To run the online tests for the ``gt-jdbc-db2`` module use the following Maven command:::
 
     mvn install -Dall -pl :gt-jdbc-db2 -Ponline -T1.1C -Dfmt.skip=true -am
+
+When done use ``docker stop geotools`` to stop and cleanup/remove the container.
+
+
+IBM Informix
+____________________
+
+Informix images are provided by `Ibm on dockerhub <https://hub.docker.com/r/ibmcom/informix-developer-database/>`_.
+
+Use the following to create and start an Informix container listening on port 9088:::
+
+    docker pull ibmcom/informix-developer-database:latest
+    docker run -e 'LICENSE=accept' -e 'DB_INIT=1' -e 'SIZE=small' -e 'STORAGE=local' --rm -p 9088:9088 --name geotools --privileged=true -d ibmcom/informix-developer-database:latest
+
+Note that the ``--rm`` option will delete the container after stopping it, the image is preserved so you won't need
+to pull it next time, but you may want to preserve the container or map some volumes so you don't have to setup a new one.
+The Docker page linked above provides more documentation on how to do this with this image.
+
+Then create a database ``geotools`` in the database using:::
+
+    docker cp ./build/ci/informix/setup-informix-database.sql geotools:/home/informix/
+    docker cp ./build/ci/informix/setup-informix-database.sh geotools:/home/informix/
+    docker exec -u informix -i geotools /home/informix/setup-informix-database.sh
+
+This will copy the setup command into the container and execute.
+
+The appropriate fixture for using the above database schema would be::
+
+    driver=com.informix.jdbc.IfxDriver
+    port=9088
+    user=informix
+    host=127.0.0.1
+    dbtype=informix
+    password=in4mix
+    database=geotools
+    url=jdbc:informix-sqli://localhost:9088/geotools:INFORMIXSERVER=informix
+
+In file ``~/.geotools/informix-sqli.properties``
+
+Shell scripts ``start-informix.sh`` and ``setup-informix.sh`` for the above steps are provided in directory ``build/ci/informix/`` of the source tree.
+
+To run the online tests for the ``gt-jdbc-informix`` module use the following Maven command:::
+
+    mvn install -Dall -pl :gt-jdbc-informix -Ponline -T1.1C -Dfmt.skip=true -am
 
 When done use ``docker stop geotools`` to stop and cleanup/remove the container.
