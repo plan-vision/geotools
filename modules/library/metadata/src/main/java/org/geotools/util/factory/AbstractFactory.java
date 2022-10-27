@@ -354,15 +354,22 @@ public class AbstractFactory implements Factory, RegistrableFactory {
         if (object == this) {
             return true;
         }
-        if (object != null && object.getClass().equals(getClass())) {
-            final AbstractFactory that = (AbstractFactory) object;
-            if (this.priority == that.priority) {
-                final Set<FactoryComparator> comparators = new HashSet<>();
-                return new FactoryComparator(this, that).compare(comparators);
+
+        // Fixes runtime recursion stack overflow during class initialization in native-image TODO
+        // ANOTHER WORKAOURND?
+        if (!isNativeImageRuntime)
+            if (object != null && object.getClass().equals(getClass())) {
+                final AbstractFactory that = (AbstractFactory) object;
+                if (this.priority == that.priority) {
+                    final Set<FactoryComparator> comparators = new HashSet<>();
+                    return new FactoryComparator(this, that).compare(comparators);
+                }
             }
-        }
         return false;
     }
+
+    // detects graalvm native-image runtime
+    private static final boolean isNativeImageRuntime = System.getProperty("java.home") == null;
 
     /**
      * Returns a string representation of this factory. This method is mostly for debugging purpose,
