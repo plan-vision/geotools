@@ -13,7 +13,7 @@
   <parent>
     <groupId>org.geotools</groupId>
     <artifactId>library</artifactId>
-    <version>29-SNAPSHOT</version>
+    <version>30-SNAPSHOT</version>
   </parent>
 
   <!-- =========================================================== -->
@@ -167,6 +167,11 @@
     <dependency>
       <groupId>systems.uom</groupId>
       <artifactId>systems-common</artifactId>
+    </dependency>
+
+    <dependency>
+      <groupId>tech.units</groupId>
+      <artifactId>indriya</artifactId>
     </dependency>
 
     <!-- Test dependencies -->

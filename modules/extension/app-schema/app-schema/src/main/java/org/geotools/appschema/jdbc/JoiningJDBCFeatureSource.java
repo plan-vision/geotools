@@ -96,6 +96,7 @@ public class JoiningJDBCFeatureSource extends JDBCFeatureSource {
     public static final String PRIMARY_KEY = "PARENT_TABLE_PKEY";
 
     private static final String COUNT_TABLE_ALIAS = "COUNT_TABLE";
+    private static final String DISTINCT_TABLE_ALIAS = "DISTINCT_TABLE";
 
     public JoiningJDBCFeatureSource(JDBCFeatureSource featureSource) throws IOException {
         super(featureSource);
@@ -1452,7 +1453,7 @@ public class JoiningJDBCFeatureSource extends JDBCFeatureSource {
     @Override
     protected int getCountInternal(Query query) throws IOException {
         // the primaryKey from the wrapped JDBCSource
-        String idColumnName = getIdColumnName(getSchema());
+        Set<String> idColumnNames = getIdColumnNames(getSchema());
         JoiningQuery jQuery = (JoiningQuery) query;
 
         // Checks if the filter is based on root property
@@ -1462,10 +1463,10 @@ public class JoiningJDBCFeatureSource extends JDBCFeatureSource {
         // if there are MultipleValues
         MultipleValueExtractor extractor = new MultipleValueExtractor();
         jQuery.getRootMapping().getFeatureIdExpression().accept(extractor, null);
-        String[] attributes = extractor.getAttributeNames();
         // the id from the app-schema configuration
-        String idMapping = attributes.length > 0 ? extractor.getAttributeNames()[0] : null;
-        boolean idsColumnEquals = idColumnName.equals(idMapping);
+        Set<String> idMapping = new HashSet<>();
+        Collections.addAll(idMapping, extractor.getAttributeNames());
+        boolean idsColumnEquals = idColumnNames.equals(idMapping);
         Filter filter = jQuery.getFilter();
         filter.accept(extractor, null);
 
@@ -1480,7 +1481,7 @@ public class JoiningJDBCFeatureSource extends JDBCFeatureSource {
 
         // not equals the count should be over the actually used
         // field for the ComplexFeature's id
-        if (!idsColumnEquals && idMapping != null) idColumnName = idMapping;
+        if (!idsColumnEquals && !idMapping.isEmpty()) idColumnNames = idMapping;
 
         // Build the feature type returned by this query. Also build an eventual extra feature type
         // containing the attributes we might need in order to evaluate the post filter
@@ -1500,9 +1501,9 @@ public class JoiningJDBCFeatureSource extends JDBCFeatureSource {
                 String sql =
                         !isNestedFilter
                                 ? createCountQuery(
-                                        dialect, querySchema, jQuery, idColumnName, toSQLref)
+                                        dialect, querySchema, jQuery, idColumnNames, toSQLref)
                                 : createJoiningCountQuery(
-                                        dialect, querySchema, jQuery, idColumnName, toSQLref);
+                                        dialect, querySchema, jQuery, idColumnNames, toSQLref);
                 st =
                         cx.prepareStatement(
                                 sql, ResultSet.TYPE_FORWARD_ONLY, ResultSet.CONCUR_READ_ONLY);
@@ -1515,9 +1516,10 @@ public class JoiningJDBCFeatureSource extends JDBCFeatureSource {
             } else {
                 String sql =
                         !isNestedFilter
-                                ? createCountQuery(dialect, querySchema, jQuery, idColumnName, null)
+                                ? createCountQuery(
+                                        dialect, querySchema, jQuery, idColumnNames, null)
                                 : createJoiningCountQuery(
-                                        dialect, querySchema, jQuery, idColumnName, null);
+                                        dialect, querySchema, jQuery, idColumnNames, null);
                 st = cx.createStatement();
                 rs = st.executeQuery(sql);
             }
@@ -1539,24 +1541,34 @@ public class JoiningJDBCFeatureSource extends JDBCFeatureSource {
         }
     }
 
-    private String createCountQuery(
+    String createCountQuery(
             SQLDialect dialect,
             SimpleFeatureType querySchema,
             JoiningQuery query,
-            String idColumnName,
+            Set<String> idColumnNames,
             AtomicReference<PreparedFilterToSQL> toSQLRef)
             throws FilterToSQLException, SQLException {
-        StringBuffer countSQL = new StringBuffer("SELECT COUNT(").append("DISTINCT ");
-        getDataStore().encodeTableName(querySchema.getTypeName(), countSQL, query.getHints());
-        countSQL.append(".");
-        dialect.encodeColumnName(null, idColumnName, countSQL);
-        countSQL.append(")").append(" FROM ");
+        StringBuffer countSQL = new StringBuffer("SELECT COUNT(*) FROM (SELECT DISTINCT ");
+        boolean first = true;
+        for (String idColumnName : idColumnNames) {
+            if (!first) {
+                countSQL.append(", ");
+            }
+            getDataStore().encodeTableName(querySchema.getTypeName(), countSQL, query.getHints());
+            countSQL.append(".");
+            dialect.encodeColumnName(null, idColumnName, countSQL);
+            first = false;
+        }
+        countSQL.append(" FROM ");
         getDataStore().encodeTableName(querySchema.getTypeName(), countSQL, query.getHints());
         if (!query.getFilter().equals(Filter.INCLUDE)) {
+            countSQL.append(" ");
             FilterToSQL toSql = createFilterToSQL(querySchema);
             countSQL.append(toSql.encodeToString(query.getFilter()));
             if (toSql instanceof PreparedFilterToSQL) toSQLRef.set((PreparedFilterToSQL) toSql);
         }
+        countSQL.append(")");
+        dialect.encodeTableName(DISTINCT_TABLE_ALIAS, countSQL);
         String countQuery = countSQL.toString();
         if (LOGGER.isLoggable(Level.FINE)) LOGGER.fine(countQuery);
         return countQuery;
@@ -1566,24 +1578,35 @@ public class JoiningJDBCFeatureSource extends JDBCFeatureSource {
             SQLDialect dialect,
             SimpleFeatureType querySchema,
             JoiningQuery query,
-            String idColumnName,
+            Set<String> idColumnNames,
             AtomicReference<PreparedFilterToSQL> toSQLRef)
             throws IOException, SQLException, FilterToSQLException {
-        StringBuffer countSQL = new StringBuffer("SELECT COUNT(").append("DISTINCT ");
-        dialect.encodeColumnName(COUNT_TABLE_ALIAS, idColumnName, countSQL);
-        countSQL.append(")").append(" FROM (");
+        StringBuffer countSQL = new StringBuffer("SELECT COUNT(*) FROM (SELECT DISTINCT ");
+        boolean first = true;
+        for (String idColumnName : idColumnNames) {
+            if (!first) {
+                countSQL.append(", ");
+            }
+            dialect.encodeColumnName(COUNT_TABLE_ALIAS, idColumnName, countSQL);
+            first = false;
+        }
+        countSQL.append(" FROM (");
         String sql = selectSQL(querySchema, query, toSQLRef, true);
         countSQL.append(sql).append(") ");
         dialect.encodeTableName(COUNT_TABLE_ALIAS, countSQL);
+        countSQL.append(") ");
+        dialect.encodeTableName(DISTINCT_TABLE_ALIAS, countSQL);
         String countQuery = countSQL.toString();
         if (LOGGER.isLoggable(Level.FINE)) LOGGER.fine(countQuery);
         return countQuery;
     }
 
-    private String getIdColumnName(SimpleFeatureType featureType) throws IOException {
-        PrimaryKeyColumn column = getDataStore().getPrimaryKey(featureType).getColumns().get(0);
-        String columnName = column.getName();
-        return columnName;
+    private Set<String> getIdColumnNames(SimpleFeatureType featureType) throws IOException {
+        Set<String> columnNames = new HashSet<>();
+        for (PrimaryKeyColumn column : getDataStore().getPrimaryKey(featureType).getColumns()) {
+            columnNames.add(column.getName());
+        }
+        return columnNames;
     }
 
     private Set<String> getAllPrimaryKeys(SimpleFeatureType featureType) {

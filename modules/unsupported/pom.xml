@@ -7,7 +7,7 @@
   <parent>
     <groupId>org.geotools</groupId>
     <artifactId>modules</artifactId>
-    <version>29-SNAPSHOT</version>
+    <version>30-SNAPSHOT</version>
   </parent>
   <!-- =========================================================== -->
   <!-- Module Description -->
@@ -47,6 +47,7 @@
     <module>jdbc-teradata</module>
     <module>stac-store</module>
     <module>vector-mosaic</module>
+    <module>jdbc-h2gis</module>
   </modules>
   <profiles>
     <!-- ================================================== -->

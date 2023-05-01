@@ -23,6 +23,7 @@ import it.geosolutions.imageio.imageioimpl.EnhancedImageReadParam;
 import it.geosolutions.imageio.pam.PAMDataset;
 import it.geosolutions.imageio.pam.PAMParser;
 import it.geosolutions.imageio.utilities.ImageIOUtilities;
+import it.geosolutions.imageioimpl.plugins.tiff.TIFFImageMetadata;
 import it.geosolutions.jaiext.range.NoDataContainer;
 import it.geosolutions.jaiext.vectorbin.ROIGeometry;
 import it.geosolutions.jaiext.vectorbin.VectorBinarizeDescriptor;
@@ -152,10 +153,8 @@ public class GranuleDescriptor {
                     new VectorBinarizeDescriptor(),
                     new VectorBinarizeRIF(),
                     Registry.JAI_TOOLS_PRODUCT);
-        } catch (Exception e) {
-            if (LOGGER.isLoggable(Level.FINE)) {
-                LOGGER.log(Level.FINE, e.getLocalizedMessage());
-            }
+        } catch (Throwable e) {
+            LOGGER.log(Level.SEVERE, "Error when registering RIF for GranuleDescriptor.", e);
         }
     }
 
@@ -338,7 +337,7 @@ public class GranuleDescriptor {
         }
     }
 
-    private static PAMParser pamParser = PAMParser.getInstance();
+    private static PAMParser pamParser;
 
     ReferencedEnvelope granuleBBOX;
 
@@ -506,16 +505,13 @@ public class GranuleDescriptor {
             }
             //////////////////////////////////////////////////////////////////////////
 
-            if (hints != null && hints.containsKey(Utils.CHECK_AUXILIARY_METADATA)) {
-                boolean checkAuxiliaryMetadata =
-                        (Boolean) hints.get(Utils.CHECK_AUXILIARY_METADATA);
-                if (checkAuxiliaryMetadata) {
-                    checkPamDataset();
-                }
+            boolean checkAuxiliaryMetadata = checkAuxiliaryMetadata(hints);
+            if (checkAuxiliaryMetadata) {
+                checkPamDataset();
             }
 
             // handle the nodata and rescaling if available
-            initFromImageMetadata(imageReader);
+            initFromImageMetadata(imageReader, checkAuxiliaryMetadata);
         } catch (IllegalStateException | IOException e) {
             throw new IllegalArgumentException(e);
 
@@ -540,6 +536,12 @@ public class GranuleDescriptor {
                 }
             }
         }
+    }
+
+    private boolean checkAuxiliaryMetadata(Hints hints) {
+        if (hints != null && hints.containsKey(Utils.CHECK_AUXILIARY_METADATA))
+            return (Boolean) hints.get(Utils.CHECK_AUXILIARY_METADATA);
+        return false;
     }
 
     private boolean supportsNativeBandSelection() {
@@ -587,7 +589,7 @@ public class GranuleDescriptor {
         return provider;
     }
 
-    private void initFromImageMetadata(ImageReader reader) throws IOException {
+    private void initFromImageMetadata(ImageReader reader, boolean readPam) throws IOException {
         // grabbing the nodata if possible
         int index = 0;
         if (originator != null) {
@@ -608,6 +610,10 @@ public class GranuleDescriptor {
 
                 this.scales = ccm.getScales();
                 this.offsets = ccm.getOffsets();
+            }
+            if (readPam && this.pamDataset == null && metadata instanceof TIFFImageMetadata) {
+                TIFFImageMetadata tiffMetadata = (TIFFImageMetadata) metadata;
+                this.pamDataset = AbstractGridCoverage2DReader.getPamDataset(tiffMetadata);
             }
         } catch (UnsupportedOperationException e) {
             // some imageio-ext plugin throw this because they do not support getting the metadata
@@ -632,8 +638,17 @@ public class GranuleDescriptor {
     private void checkPamDataset() throws IOException {
         final File file = URLs.urlToFile(granuleUrl);
         final String path = file.getCanonicalPath();
-        final String auxFile = path + AUXFILE_EXT;
-        pamDataset = pamParser.parsePAM(auxFile);
+        final File auxFile = new File(path + AUXFILE_EXT);
+        if (auxFile.exists()) {
+            if (pamParser == null) {
+                try {
+                    pamParser = PAMParser.getInstance();
+                } catch (Throwable e) {
+                    throw new RuntimeException("Couldn't initialize PAM parser.", e);
+                }
+            }
+            pamDataset = pamParser.parsePAM(auxFile);
+        }
     }
 
     public GranuleDescriptor(

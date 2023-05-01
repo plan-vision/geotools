@@ -2,7 +2,7 @@
  *    GeoTools - The Open Source Java GIS Toolkit
  *    http://geotools.org
  *
- *    (C) 2021, Open Source Geospatial Foundation (OSGeo)
+ *    (C) 2023, Open Source Geospatial Foundation (OSGeo)
  *
  *    This library is free software; you can redistribute it and/or
  *    modify it under the terms of the GNU Lesser General Public
@@ -13,16 +13,17 @@
  *    but WITHOUT ANY WARRANTY; without even the implied warranty of
  *    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
  *    Lesser General Public License for more details.
+ *
  */
-package org.geotools.measure;
+package org.h2gis.geotools;
 
-import tech.units.indriya.format.SimpleUnitFormat;
+import org.geotools.jdbc.JDBCViewOnlineTest;
+import org.geotools.jdbc.JDBCViewTestSetup;
 
-abstract class SimpleUnitFormatForwarder extends SimpleUnitFormat {
+public class H2GISViewTest extends JDBCViewOnlineTest {
 
-    /**
-     * A package-private forwarder for BaseUnitFormatter, such that users can use that top-level
-     * class instead of this nested class here.
-     */
-    static class DefaultFormatForwarder extends DefaultFormat implements UnitFormatter {}
+    @Override
+    protected JDBCViewTestSetup createTestSetup() {
+        return new H2GISViewTestSetup();
+    }
 }

@@ -2202,10 +2202,11 @@ public final class JDBCDataStore extends ContentDataStore implements GmlObjectSt
      *       use the {@link Transaction} facilities to do so instead
      * </ul>
      *
-     * @param t The GeoTools transaction. Can be {@code null}, in that case a new connection will be
-     *     returned (as if {@link Transaction#AUTO_COMMIT} was provided)
+     * @param t The GeoTools transaction, can not be null
      */
     public Connection getConnection(Transaction t) throws IOException {
+        Objects.requireNonNull(t);
+
         // short circuit this state, all auto commit transactions are using the same
         if (t == Transaction.AUTO_COMMIT) {
             Connection cx = createConnection();
@@ -3501,8 +3502,10 @@ public final class JDBCDataStore extends ContentDataStore implements GmlObjectSt
     }
 
     private void applySearchHints(SimpleFeatureType featureType, Query query, StringBuffer sql) {
-        // we can apply search hints only on real tables
-        if (virtualTables.containsKey(featureType.getTypeName())) {
+        // If there are virtual tables in the query, ask the dialect whether select hints should be
+        // omitted
+        if (virtualTables.containsKey(featureType.getTypeName())
+                && !dialect.applyHintsOnVirtualTables()) {
             return;
         }
 

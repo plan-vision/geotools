@@ -13,7 +13,7 @@
   <parent>
     <groupId>org.geotools</groupId>
     <artifactId>library</artifactId>
-    <version>29-SNAPSHOT</version>
+    <version>30-SNAPSHOT</version>
   </parent>
 
   <!-- =========================================================== -->
@@ -236,6 +236,11 @@
       <groupId>com.google.re2j</groupId>
       <artifactId>re2j</artifactId>
       <version>1.6</version>
+    </dependency>
+    <dependency>
+      <groupId>org.ejml</groupId>
+      <artifactId>ejml-ddense</artifactId>
+      <!-- The version number is specified in the parent POM. -->
     </dependency>
     <dependency>
       <groupId>junit</groupId>

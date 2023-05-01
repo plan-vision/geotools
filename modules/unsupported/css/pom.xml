@@ -8,7 +8,7 @@
   <parent>
     <groupId>org.geotools</groupId>
     <artifactId>unsupported</artifactId>
-    <version>29-SNAPSHOT</version>
+    <version>30-SNAPSHOT</version>
   </parent>
 
   <!-- =========================================================== -->
@@ -78,7 +78,7 @@
     <dependency>
       <groupId>org.parboiled</groupId>
       <artifactId>parboiled-java</artifactId>
-      <version>1.2.0</version>
+      <version>1.4.1</version>
     </dependency>
     <dependency>
       <groupId>org.geotools.xsd</groupId>

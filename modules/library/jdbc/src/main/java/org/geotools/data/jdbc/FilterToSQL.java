@@ -16,6 +16,7 @@
  */
 package org.geotools.data.jdbc;
 
+import static java.util.Map.entry;
 import static org.geotools.filter.capability.FunctionNameImpl.parameter;
 
 import java.io.IOException;
@@ -26,7 +27,6 @@ import java.sql.Timestamp;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Date;
-import java.util.HashMap;
 import java.util.Iterator;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -45,6 +45,7 @@ import org.geotools.filter.capability.FunctionNameImpl;
 import org.geotools.filter.function.InFunction;
 import org.geotools.filter.spatial.BBOXImpl;
 import org.geotools.jdbc.EnumMapper;
+import org.geotools.jdbc.EscapeSql;
 import org.geotools.jdbc.JDBCDataStore;
 import org.geotools.jdbc.JoinId;
 import org.geotools.jdbc.JoinPropertyName;
@@ -167,23 +168,20 @@ public class FilterToSQL implements FilterVisitor, ExpressionVisitor {
 
     /** Conversion factor from common units to meter */
     private static final Map<String, Double> UNITS_MAP =
-            new HashMap<String, Double>() {
-                {
-                    put("kilometers", 1000.0);
-                    put("kilometer", 1000.0);
-                    put("km", 1000.0);
-                    put("m", 1.0);
-                    put("meter", 1.0);
-                    put("mm", 0.001);
-                    put("millimeter", 0.001);
-                    put("mi", 1609.344);
-                    put("miles", 1609.344);
-                    put("nm", 1852d);
-                    put("feet", 0.3048);
-                    put("ft", 0.3048);
-                    put("in", 0.0254);
-                }
-            };
+            Map.ofEntries(
+                    entry("kilometers", 1000.0),
+                    entry("kilometer", 1000.0),
+                    entry("km", 1000.0),
+                    entry("m", 1.0),
+                    entry("meter", 1.0),
+                    entry("mm", 0.001),
+                    entry("millimeter", 0.001),
+                    entry("mi", 1609.344),
+                    entry("miles", 1609.344),
+                    entry("nm", 1852d),
+                    entry("feet", 0.3048),
+                    entry("ft", 0.3048),
+                    entry("in", 0.0254));
 
     /** error message for exceptions */
     protected static final String IO_ERROR = "io problem writing filter";
@@ -230,6 +228,9 @@ public class FilterToSQL implements FilterVisitor, ExpressionVisitor {
     /** Whether the encoder should try to encode "in" function into a SQL IN operator */
     protected boolean inEncodingEnabled = true;
 
+    /** Whether to escape backslash characters in string literals */
+    protected boolean escapeBackslash = false;
+
     /** Default constructor */
     public FilterToSQL() {}
 
@@ -263,6 +264,16 @@ public class FilterToSQL implements FilterVisitor, ExpressionVisitor {
      */
     public void setInEncodingEnabled(boolean inEncodingEnabled) {
         this.inEncodingEnabled = inEncodingEnabled;
+    }
+
+    /** @return whether to escape backslash characters in string literals */
+    public boolean isEscapeBackslash() {
+        return escapeBackslash;
+    }
+
+    /** @param escapeBackslash whether to escape backslash characters in string literals */
+    public void setEscapeBackslash(boolean escapeBackslash) {
+        this.escapeBackslash = escapeBackslash;
     }
 
     /**
@@ -529,7 +540,8 @@ public class FilterToSQL implements FilterVisitor, ExpressionVisitor {
             literal += multi;
         }
 
-        String pattern = LikeFilterImpl.convertToSQL92(esc, multi, single, matchCase, literal);
+        String pattern =
+                LikeFilterImpl.convertToSQL92(esc, multi, single, matchCase, literal, false);
 
         try {
             if (!matchCase) {
@@ -539,13 +551,12 @@ public class FilterToSQL implements FilterVisitor, ExpressionVisitor {
             att.accept(this, extraData);
 
             if (!matchCase) {
-                out.write(") LIKE '");
+                out.write(") LIKE ");
             } else {
-                out.write(" LIKE '");
+                out.write(" LIKE ");
             }
 
-            out.write(pattern);
-            out.write("' ");
+            writeLiteral(pattern);
         } catch (java.io.IOException ioe) {
             throw new RuntimeException(IO_ERROR, ioe);
         }
@@ -1170,11 +1181,8 @@ public class FilterToSQL implements FilterVisitor, ExpressionVisitor {
                         out.write(".");
                     }
                     out.write(escapeName(columns.get(j).getName()));
-                    out.write(" = '");
-                    out.write(
-                            attValues.get(j).toString()); // DJB: changed this to attValues[j] from
-                    // attValues[i].
-                    out.write("'");
+                    out.write(" = ");
+                    writeLiteral(attValues.get(j));
 
                     if (j < (attValues.size() - 1)) {
                         out.write(" AND ");
@@ -1747,10 +1755,15 @@ public class FilterToSQL implements FilterVisitor, ExpressionVisitor {
                 encoding = literal.toString();
             }
 
-            // sigle quotes must be escaped to have a valid sql string
-            String escaped = encoding.replaceAll("'", "''");
+            // single quotes must be escaped to have a valid sql string
+            String escaped = escapeLiteral(encoding);
             out.write("'" + escaped + "'");
         }
+    }
+
+    /** Escapes the string literal. */
+    public String escapeLiteral(String literal) {
+        return EscapeSql.escapeLiteral(literal, escapeBackslash, false);
     }
 
     /**

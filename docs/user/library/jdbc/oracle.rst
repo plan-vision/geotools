@@ -80,6 +80,9 @@ Advanced
 |     ``timeout``       | a session with the database listener           |
 |                       | (milliseconds)                                 |
 +-----------------------+------------------------------------------------+
+|``Get remarks``        | Boolean flag specifies whether REMARKS         |
+|                       | metadata will be returned.                     |
++-----------------------+------------------------------------------------+
 
 
 Example use::

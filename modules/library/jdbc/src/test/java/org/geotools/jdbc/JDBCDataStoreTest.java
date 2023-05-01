@@ -25,6 +25,7 @@ import static org.mockito.Mockito.when;
 
 import com.mockrunner.mock.jdbc.JDBCMockObjectFactory;
 import com.mockrunner.mock.jdbc.MockConnection;
+import com.mockrunner.mock.jdbc.MockDataSource;
 import com.mockrunner.mock.jdbc.MockDatabaseMetaData;
 import com.mockrunner.mock.jdbc.MockResultSet;
 import com.mockrunner.mock.jdbc.MockStatement;
@@ -42,10 +43,13 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
+import org.geotools.data.DefaultTransaction;
 import org.geotools.data.Query;
+import org.geotools.data.Transaction;
 import org.geotools.factory.CommonFactoryFinder;
 import org.geotools.feature.simple.SimpleFeatureTypeBuilder;
 import org.geotools.util.factory.Hints;
+import org.junit.Assert;
 import org.junit.Test;
 import org.locationtech.jts.geom.Envelope;
 import org.locationtech.jts.geom.Geometry;
@@ -220,5 +224,31 @@ public class JDBCDataStoreTest {
         verify(callback, times(3)).afterNext(rowData, true);
         verify(callback, times(1)).afterNext(rowData, false);
         verify(callback, times(1)).finish(reader);
+    }
+
+    @Test
+    public void testGetConnectionAutocommit() throws Exception {
+
+        JDBCMockObjectFactory jdbcMock = new JDBCMockObjectFactory();
+        MockDataSource dataSource = jdbcMock.getMockDataSource();
+        dataSource.setupConnection(jdbcMock.getMockConnection());
+        JDBCDataStore store = new JDBCDataStore();
+        store.setSQLDialect(mock(BasicSQLDialect.class));
+        store.setDataSource(dataSource);
+
+        try (Connection conn = store.getConnection(Transaction.AUTO_COMMIT)) {
+            Assert.assertEquals(Boolean.TRUE, conn.getAutoCommit());
+        }
+
+        try (Transaction transaction = new DefaultTransaction();
+                Connection conn2 = store.getConnection(transaction)) {
+            Assert.assertEquals(Boolean.FALSE, conn2.getAutoCommit());
+        }
+
+        Assert.assertThrows(
+                Exception.class,
+                () -> {
+                    try (Connection connection = store.getConnection((Transaction) null)) {}
+                });
     }
 }

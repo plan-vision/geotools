@@ -17,7 +17,6 @@
 package org.geotools.ows.wmts;
 
 import java.io.IOException;
-import java.net.MalformedURLException;
 import java.net.URL;
 import java.util.Map;
 import java.util.Properties;
@@ -153,46 +152,6 @@ public class WebMapTileServer extends AbstractOpenWebService<WMTSCapabilities, L
     }
 
     /**
-     * Set up the WebMapTileServer with the given capabilities. Using the default http client.
-     *
-     * @param capabilities
-     * @throws ServiceException
-     * @throws IOException
-     * @deprecated Use constructor with serverUrl and capabilities
-     */
-    @Deprecated
-    public WebMapTileServer(WMTSCapabilities capabilities) throws ServiceException, IOException {
-        this(capabilities, HTTPClientFinder.createClient());
-    }
-
-    /**
-     * Set up the WebMapTileServer with the given capabilities, using a custom http client.
-     *
-     * @param capabilities
-     * @throws ServiceException
-     * @throws IOException
-     * @deprecated Use constructor with serverUrl, capabilities and httpClient.
-     */
-    @Deprecated
-    public WebMapTileServer(WMTSCapabilities capabilities, HTTPClient httpClient)
-            throws ServiceException, IOException {
-        super(extractServerURL(capabilities), httpClient, capabilities);
-        setupType();
-    }
-
-    private static URL extractServerURL(WMTSCapabilities capabilities) {
-        URL url = capabilities.getRequest().getGetCapabilities().getGet();
-        if (url == null) {
-            try {
-                url = new URL("http://missing.url/");
-            } catch (MalformedURLException e) {
-                //
-            }
-        }
-        return url;
-    }
-
-    /**
      * Set up a WebMapTileServer by the same serverURL, httpClient, capabilities and hints as
      * delegate
      *
@@ -306,11 +265,11 @@ public class WebMapTileServer extends AbstractOpenWebService<WMTSCapabilities, L
 
     /** The URL for RESTful can't be established at this point, but it can't be null either. */
     private URL findGetTileURL(OperationType operation) {
-        if (operation == null) {
-            return null;
-        }
         switch (type) {
             case KVP:
+                if (operation == null) {
+                    return null;
+                }
                 return operation.getGet() != null ? operation.getGet() : serverURL;
             case REST:
                 return serverURL;
