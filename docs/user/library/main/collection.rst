@@ -1,5 +1,5 @@
-``FeatureCollection``
----------------------
+FeatureCollection
+-----------------
 
 A ``FeatureCollection`` is a collection of Features similar to a JDBC ``ResultSet``. 
 
@@ -467,7 +467,7 @@ Function               Visitor                    Notes
   
   Here is an example of using Collection_Sum on a ``FeatureCollection``::
     
-    FilterFactory2 ff = CommonFactoryFinder.getFilterFactory2();
+    FilterFactory ff = CommonFactoryFinder.getFilterFactory();
     Function sum = ff.function("Collection_Sum", ff.property("age"));
     
     Object value = sum.evaluate( featureCollection );
@@ -477,7 +477,7 @@ Function               Visitor                    Notes
   
   Here is an example of using Collection_Max on a ``FeatureCollection``::
     
-    FilterFactory2 ff = CommonFactoryFinder.getFilterFactory2();
+    FilterFactory ff = CommonFactoryFinder.getFilterFactory();
     Function sum = ff.function("Collection_Max", ff.property("age"));
     
     Object value = sum.evaluate( featureCollection );

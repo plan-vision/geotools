@@ -21,11 +21,11 @@ package org.geotools.filter.function;
 
 import static org.geotools.filter.capability.FunctionNameImpl.parameter;
 
+import org.geotools.api.filter.capability.FunctionName;
 import org.geotools.filter.FunctionExpressionImpl;
 import org.geotools.filter.capability.FunctionNameImpl;
 import org.geotools.geometry.jts.ReferencedEnvelope;
 import org.locationtech.jts.geom.Geometry;
-import org.opengis.filter.capability.FunctionName;
 
 /** @source $URL$ */
 public class FilterFunction_intersection extends FunctionExpressionImpl {
