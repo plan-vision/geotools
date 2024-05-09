@@ -1276,25 +1276,30 @@ public class StreamingRenderer implements GTRenderer {
                     }
                 }
 
+                // if there is any trouble during generalization distance calculation, we'll
+                // get [0,0] as the spans. Do not generalize in that case.
                 double distance = spans[0] < spans[1] ? spans[0] : spans[1];
-                if (hasRenderingTransformation) {
-                    // the RT might need valid geometries, we can at most apply a topology
-                    // preserving generalization
-                    if (fsHints.contains(Hints.GEOMETRY_GENERALIZATION)) {
-                        hints.put(Hints.GEOMETRY_GENERALIZATION, distance);
-                        disableInMemoryGeneralization(styleList);
-                    }
-                } else {
-                    // ... if possible we let the datastore do the generalization
-                    if (fsHints.contains(Hints.GEOMETRY_SIMPLIFICATION)) {
-                        // good, we don't need to perform in memory generalization, the datastore
-                        // does it all for us
-                        hints.put(Hints.GEOMETRY_SIMPLIFICATION, distance);
-                        disableInMemoryGeneralization(styleList);
-                    } else if (fsHints.contains(Hints.GEOMETRY_DISTANCE)) {
-                        // in this case the datastore can get us close, but we can still
-                        // perform some in memory generalization
-                        hints.put(Hints.GEOMETRY_DISTANCE, distance);
+                if (distance > 0) {
+                    if (hasRenderingTransformation) {
+                        // the RT might need valid geometries, we can at most apply a topology
+                        // preserving generalization
+                        if (fsHints.contains(Hints.GEOMETRY_GENERALIZATION)) {
+                            hints.put(Hints.GEOMETRY_GENERALIZATION, distance);
+                            disableInMemoryGeneralization(styleList);
+                        }
+                    } else {
+                        // ... if possible we let the datastore do the generalization
+                        if (fsHints.contains(Hints.GEOMETRY_SIMPLIFICATION)) {
+                            // good, we don't need to perform in memory generalization, the
+                            // datastore
+                            // does it all for us
+                            hints.put(Hints.GEOMETRY_SIMPLIFICATION, distance);
+                            disableInMemoryGeneralization(styleList);
+                        } else if (fsHints.contains(Hints.GEOMETRY_DISTANCE)) {
+                            // in this case the datastore can get us close, but we can still
+                            // perform some in memory generalization
+                            hints.put(Hints.GEOMETRY_DISTANCE, distance);
+                        }
                     }
                 }
             }
@@ -2008,10 +2013,11 @@ public class StreamingRenderer implements GTRenderer {
         layer.getStyle().accept(selectorStyleVisitor);
         Style style = (Style) selectorStyleVisitor.getCopy();
 
+        FeatureType schema = layer.getFeatureSource().getSchema();
         for (FeatureTypeStyle fts : style.featureTypeStyles()) {
-            if (isFeatureTypeStyleActive(layer.getFeatureSource().getSchema(), fts)) {
+            if (isFeatureTypeStyleActive(schema, fts)) {
 
-                SimplifyingStyleVisitor simplifier = new SimplifyingStyleVisitor();
+                SimplifyingStyleVisitor simplifier = new SimplifyingStyleVisitor(schema);
                 fts.accept(simplifier);
                 fts = (FeatureTypeStyle) simplifier.getCopy();
 
@@ -2076,7 +2082,7 @@ public class StreamingRenderer implements GTRenderer {
 
         if (!result.isEmpty()) {
             // make sure all spatial filters in the feature source native SRS
-            reprojectSpatialFilters(result, layer.getFeatureSource().getSchema());
+            reprojectSpatialFilters(result, schema);
 
             // apply the uom and dpi rescale
             applyUnitRescale(result);
@@ -2989,7 +2995,8 @@ public class StreamingRenderer implements GTRenderer {
                                             disposeCoverage,
                                             (RasterSymbolizer) symbolizer,
                                             destinationCrs,
-                                            worldToScreenTransform));
+                                            worldToScreenTransform,
+                                            getRenderingInterpolation(drawMe.layer)));
                             paintCommands++;
                         }
                     } else if (grid instanceof GridCoverage2DReader) {
@@ -3858,6 +3865,7 @@ public class StreamingRenderer implements GTRenderer {
      */
     protected class RenderRasterRequest extends RenderingRequest {
 
+        private final Interpolation interpolation;
         private Graphics2D graphics;
         private boolean disposeCoverage;
         private GridCoverage2D coverage;
@@ -3871,13 +3879,15 @@ public class StreamingRenderer implements GTRenderer {
                 boolean disposeCoverage,
                 RasterSymbolizer symbolizer,
                 CoordinateReferenceSystem destinationCRS,
-                AffineTransform worldToScreen) {
+                AffineTransform worldToScreen,
+                Interpolation interpolation) {
             this.graphics = graphics;
             this.coverage = coverage;
             this.disposeCoverage = disposeCoverage;
             this.symbolizer = symbolizer;
             this.destinationCRS = destinationCRS;
             this.worldToScreen = worldToScreen;
+            this.interpolation = interpolation;
         }
 
         @Override
@@ -3898,13 +3908,15 @@ public class StreamingRenderer implements GTRenderer {
                 // rely on the gridocerage renderer itself.
                 //
                 // /////////////////////////////////////////////////////////////////
+                Hints localHints = new Hints(java2dHints);
+                if (interpolation != null) localHints.put(JAI.KEY_INTERPOLATION, interpolation);
                 final GridCoverageRenderer gcr =
                         new GridCoverageRenderer(
                                 destinationCRS,
                                 originalMapExtent,
                                 screenSize,
                                 worldToScreen,
-                                java2dHints);
+                                localHints);
 
                 try {
                     gcr.paint(graphics, coverage, symbolizer);

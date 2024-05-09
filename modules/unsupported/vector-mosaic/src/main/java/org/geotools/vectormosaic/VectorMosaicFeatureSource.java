@@ -16,6 +16,7 @@
  */
 package org.geotools.vectormosaic;
 
+import static org.geotools.vectormosaic.VectorMosaicGranule.GRANULE_CONFIG_FIELDS;
 import static org.geotools.vectormosaic.VectorMosaicStore.buildName;
 
 import java.io.File;
@@ -23,14 +24,15 @@ import java.io.IOException;
 import java.io.StringReader;
 import java.net.MalformedURLException;
 import java.net.URL;
-import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Optional;
 import java.util.Properties;
 import java.util.Set;
 import java.util.logging.Level;
 import java.util.logging.Logger;
+import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 import org.apache.commons.lang3.StringUtils;
 import org.geotools.api.data.DataStore;
@@ -47,7 +49,6 @@ import org.geotools.api.feature.type.GeometryType;
 import org.geotools.api.feature.type.Name;
 import org.geotools.api.filter.Filter;
 import org.geotools.data.DataUtilities;
-import org.geotools.data.FilteringFeatureReader;
 import org.geotools.data.simple.SimpleFeatureCollection;
 import org.geotools.data.simple.SimpleFeatureIterator;
 import org.geotools.data.store.ContentEntry;
@@ -57,13 +58,24 @@ import org.geotools.feature.simple.SimpleFeatureTypeBuilder;
 import org.geotools.feature.visitor.FeatureAttributeVisitor;
 import org.geotools.feature.visitor.MaxVisitor;
 import org.geotools.feature.visitor.MinVisitor;
+import org.geotools.feature.visitor.NearestVisitor;
 import org.geotools.feature.visitor.UniqueVisitor;
+import org.geotools.filter.FilterAttributeExtractor;
 import org.geotools.geometry.jts.ReferencedEnvelope;
 import org.geotools.util.logging.Logging;
 
 /** FeatureSource for a vector mosaic. */
 public class VectorMosaicFeatureSource extends ContentFeatureSource {
     static final Logger LOGGER = Logging.getLogger(VectorMosaicFeatureSource.class);
+
+    /**
+     * Regular expression to validate store name. Store name must not contain an equals sign, a
+     * forward slash, a period, or a colon (e.g., it does not look like a property file, nor like a
+     * URI/URL).
+     */
+    private static final Pattern STORE_NAME_REGEX =
+            Pattern.compile("^(?!.*=)(?!.*(?:\\/|\\.|\\w+:\\w+)).*$", Pattern.DOTALL);
+
     private final Repository repository;
     private final String delegateStoreTypeName;
     private final String delegateStoreName;
@@ -89,7 +101,7 @@ public class VectorMosaicFeatureSource extends ContentFeatureSource {
         repository = store.getRepository();
         delegateStoreName = store.getDelegateStoreName();
         this.preferredSPI = store.getPreferredSPI();
-        finder = new GranuleStoreFinderImpl(preferredSPI);
+        finder = new GranuleStoreFinderImpl(preferredSPI, repository);
         this.connectionParameterKey = store.getConnectionParameterKey();
     }
 
@@ -168,9 +180,34 @@ public class VectorMosaicFeatureSource extends ContentFeatureSource {
         return bounds;
     }
 
+    /**
+     * Counts the matching granules by delegating to the underlying granule stores. The stores could
+     * potentially return a mix of "-1" and actual counts, the current implementation assumes that
+     * the it's convenient to grab the count forcefully when it's not available from the fast count,
+     * should still be better than counting all features after they got merged with the delegate
+     * ones.
+     *
+     * <p>A take that a single "-1" would make this method also return "-1" could also be reasoable,
+     * we might want to make the behavior configurable in the future. Currently most code really
+     * wants the actual count, not an estimate, hence the current implementation.
+     */
     @Override
     protected int getCountInternal(Query query) throws IOException {
-        return -1;
+        int count = 0;
+        SimpleFeatureCollection features = getDelegateFeatures(query);
+        try (GranuleSourceProvider provider = new GranuleSourceProvider(this, features, query)) {
+            SimpleFeatureSource source;
+            while ((source = provider.getNextGranuleSource()) != null) {
+                Query granuleQuery = provider.getGranuleQuery();
+                int granuleCount = source.getCount(granuleQuery);
+                if (granuleCount < 0) {
+                    granuleCount = source.getFeatures(granuleQuery).size();
+                }
+                count += granuleCount;
+            }
+        }
+
+        return count;
     }
 
     @Override
@@ -178,7 +215,18 @@ public class VectorMosaicFeatureSource extends ContentFeatureSource {
     @SuppressWarnings("PMD.CloseResource")
     protected FeatureReader<SimpleFeatureType, SimpleFeature> getReaderInternal(Query query)
             throws IOException {
-        FeatureReader<SimpleFeatureType, SimpleFeature> out = null;
+        SimpleFeatureCollection features = getDelegateFeatures(query);
+        FeatureReader<SimpleFeatureType, SimpleFeature> reader;
+
+        // The reader merges the features from delegate and granule, filters contents, and
+        // retypes to the target feature type
+        GranuleSourceProvider granuleSources = new GranuleSourceProvider(this, features, query);
+        reader = new VectorMosaicFeatureReader(granuleSources, this);
+
+        return reader;
+    }
+
+    private SimpleFeatureCollection getDelegateFeatures(Query query) throws IOException {
         Name dsname = buildName(delegateStoreName);
         DataStore delegateDataStore = repository.dataStore(dsname);
         Filter splitFilterIndex =
@@ -193,47 +241,34 @@ public class VectorMosaicFeatureSource extends ContentFeatureSource {
             delegateQuery.setPropertyNames(filteredArray);
         }
         SimpleFeatureCollection features = delegateFeatureSource.getFeatures(delegateQuery);
-        out = new VectorMosaicFeatureReader(features, query, this);
-        if (query.getFilter() != null) {
-            Filter filter = query.getFilter();
-            boolean filterIsAllIndex =
-                    allFilterAttributesAreInType(delegateFeatureSource.getSchema(), filter);
-            SimpleFeatureType granuleType = getGranuleType();
-            boolean filterIsAllGranule = allFilterAttributesAreInType(granuleType, filter);
-            // filter is not all index and not all granule, so wrap in FilteringFeatureReader
-            if (!filterIsAllIndex && !filterIsAllGranule) {
-                out = new FilteringFeatureReader<>(out, filter);
-            }
-        }
-        return out;
+        return features;
     }
 
-    public static String[] getOnlyTypeMatchingAttributes(
+    static String[] getOnlyTypeMatchingAttributes(
             DataStore typeStore, String typeName, Query query, boolean isDelegate)
             throws IOException {
         SimpleFeatureType featureType = typeStore.getSchema(typeName);
         Set<String> attributeNames =
                 VectorMosaicFeatureSource.getAttributeNamesForType(featureType);
-        String[] filteredArray =
-                Arrays.stream(query.getPropertyNames())
-                        .filter(attributeNames::contains)
-                        .toArray(String[]::new);
-        // delegate must have the connection parameters field
+        Set<String> queryNames = new LinkedHashSet<>(Arrays.asList(query.getPropertyNames()));
+        if (query.getFilter() != null) {
+            FilterAttributeExtractor extractor = new FilterAttributeExtractor(featureType);
+            query.getFilter().accept(extractor, null);
+            queryNames.addAll(Arrays.asList(extractor.getAttributeNames()));
+        }
+        List<String> filteredAttributes =
+                queryNames.stream().filter(attributeNames::contains).collect(Collectors.toList());
+        // delegate must have the extra granule configuration fields
         if (isDelegate) {
-            if (!containsString(
-                    filteredArray,
-                    VectorMosaicGranule.CONNECTION_PARAMETERS_DELEGATE_FIELD_DEFAULT)) {
-                List<String> list = new ArrayList<>(Arrays.asList(filteredArray));
-                list.add(VectorMosaicGranule.CONNECTION_PARAMETERS_DELEGATE_FIELD_DEFAULT);
-                filteredArray = list.toArray(new String[list.size()]);
+            for (String field : GRANULE_CONFIG_FIELDS) {
+                // some of the config fields are optional, were they included in the first place?
+                if (attributeNames.contains(field) && !filteredAttributes.contains(field)) {
+                    filteredAttributes.add(field);
+                }
             }
         }
 
-        return filteredArray;
-    }
-    // Method to check if a string is present in an array
-    private static boolean containsString(String[] array, String target) {
-        return Arrays.asList(array).contains(target);
+        return filteredAttributes.toArray(n -> new String[n]);
     }
 
     /**
@@ -335,6 +370,8 @@ public class VectorMosaicFeatureSource extends ContentFeatureSource {
     protected boolean isNotMandatoryIndexType(AttributeDescriptor descriptor) {
         String name = descriptor.getLocalName();
         return (!VectorMosaicGranule.CONNECTION_PARAMETERS_DELEGATE_FIELD_DEFAULT.equals(name)
+                && !VectorMosaicGranule.GRANULE_TYPE_NAME.equals(name)
+                && !VectorMosaicGranule.GRANULE_FILTER.equals(name)
                 && !(descriptor.getType() instanceof GeometryType)
                 && (!name.equals(VectorMosaicGranule.GRANULE_ID_FIELD)));
     }
@@ -348,7 +385,7 @@ public class VectorMosaicFeatureSource extends ContentFeatureSource {
     public DataStore initGranule(VectorMosaicGranule granule, boolean isSampleForType)
             throws IOException {
         DataStore dataStore = null;
-        validateAndLoadConnectionStringProperties(granule);
+        setupGranuleStore(granule);
         Optional<DataStore> dataStoreOptional = finder.findDataStore(granule, isSampleForType);
         dataStore =
                 dataStoreOptional.orElseThrow(
@@ -383,24 +420,13 @@ public class VectorMosaicFeatureSource extends ContentFeatureSource {
         return indexAttributeNames.containsAll(Arrays.asList(filterAttributeNames));
     }
 
-    private boolean allFilterAttributesAreInType(SimpleFeatureType featureType, Filter filter)
-            throws IOException {
-        String[] filterAttributeNames = DataUtilities.attributeNames(filter);
-        return typeHasAllAttributeNames(filterAttributeNames, featureType);
-    }
-
-    private boolean typeHasAllAttributeNames(String[] propertyNames, SimpleFeatureType featureType)
-            throws IOException {
-        Set<String> indexAttributeNames = getAttributeNamesForType(featureType);
-        return indexAttributeNames.containsAll(Arrays.asList(propertyNames));
-    }
-
     @Override
     protected boolean handleVisitor(Query query, FeatureVisitor visitor) throws IOException {
         // check if visitor is aggregate visitor
         if (visitor instanceof MaxVisitor
                 || visitor instanceof MinVisitor
-                || visitor instanceof UniqueVisitor) {
+                || visitor instanceof UniqueVisitor
+                || visitor instanceof NearestVisitor) {
             Set<String> indexAttributeNames =
                     getAttributeNamesForType(delegateStoreName, delegateStoreTypeName);
             // check if all filter attributes are in index/delegate
@@ -455,28 +481,34 @@ public class VectorMosaicFeatureSource extends ContentFeatureSource {
     }
 
     @Override
-    protected boolean canRetype() {
+    protected boolean canRetype(Query query) {
         return true;
     }
 
     @Override
-    protected boolean canFilter() {
+    protected boolean canFilter(Query query) {
         return true;
     }
+
     /**
      * Validates and loads the connection string properties into the granule
      *
      * @param granule the granule to validate and load the properties into
      */
-    private void validateAndLoadConnectionStringProperties(VectorMosaicGranule granule) {
+    private void setupGranuleStore(VectorMosaicGranule granule) {
         Properties connProps = new Properties();
+        String params = granule.getParams();
+        if (STORE_NAME_REGEX.matcher(params).matches()) {
+            granule.setStoreName(params);
+            return;
+        }
         try {
-            if (isURI(granule.getParams())) {
+            if (isURI(params)) {
                 connProps.put(
                         connectionParameterKey,
-                        toConnectionParameter(connectionParameterKey, granule.getParams()));
+                        toConnectionParameter(connectionParameterKey, params));
             } else {
-                connProps.load(new StringReader(granule.getParams()));
+                connProps.load(new StringReader(params));
             }
         } catch (IOException e) {
             connProps.put(
