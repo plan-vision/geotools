@@ -2,7 +2,7 @@
   "name": "geotools",
   "version": "26.0.0",
   "scripts": {
-	"build": "mvn package -Dmaven.test.skip=true"
+	"build": "mvn install -Dmaven.test.skip=true"
   },
   "bin": {},
   "author": "org.geotools",

@@ -368,8 +368,10 @@ public class AbstractFactory implements Factory, RegistrableFactory {
         return false;
     }
 
-    // detects graalvm native-image runtime
-    private static final boolean isNativeImageRuntime = System.getProperty("java.home") == null;
+    // detects graalvm native-image runtime, optional custom property
+    private static final boolean isNativeImageRuntime =
+            System.getProperty("java.home") == null
+                    || System.getProperty("java.runtime.nativeimage") != null;
 
     /**
      * Returns a string representation of this factory. This method is mostly for debugging purpose,
