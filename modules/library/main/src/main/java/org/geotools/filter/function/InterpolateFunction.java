@@ -301,28 +301,21 @@ public class InterpolateFunction implements Function {
         return evaluate(object, Object.class);
     }
 
+    /**
+     * {@inheritDoc}
+     *
+     * <p>When {@code context} is unspecified (i.e. {@code null} or {@code Object.class}), it'll be
+     * derived from the {@code method} parameter, as {@code java.awt.Color.class} when {@code method
+     * == COLOR}, and as {@code java.lang.Double} when {@code method == NUMERIC}.
+     *
+     * @throws IllegalArgumentException if {@code context == java.awt.Color.class} and {@code method
+     *     != COLOR}
+     */
     @Override
     public <T> T evaluate(Object object, Class<T> context) {
-        // initialize the lookup data structures only once and in a thread safe way please
-        if (interpPoints == null) {
-            synchronized (this) {
-                if (interpPoints == null) {
-                    initialize();
-                }
-            }
-        }
-
-        if (method == Method.NUMERIC && Color.class.isAssignableFrom(context)) {
-            throw new IllegalArgumentException(
-                    "Trying to evaluate the function as Color but the method parameter is set as NUMERIC");
-        }
-
-        if (method == Method.COLOR && !Color.class.isAssignableFrom(context)) {
-            throw new IllegalArgumentException(
-                    "Trying to evaluate the function as "
-                            + context.getSimpleName()
-                            + " but the method parameter is set as COLOR");
-        }
+        threadSafeInitialize();
+        context = sanitizeContext(context);
+        validateArguments(context);
 
         /**
          * Lookup value should be either the name of a feature property which can be evaluated to a
@@ -378,6 +371,34 @@ public class InterpolateFunction implements Function {
         }
     }
 
+    /**
+     * Returns the default context based on method when it's not specified (e.g. null or
+     * Object.class), for the Converters to return the default object type: Color if method ==
+     * COLOR, Double of method == NUMERIC. If a specific "context" is asked, returns it as-is.
+     */
+    @SuppressWarnings("unchecked")
+    private <T> Class<T> sanitizeContext(Class<T> context) {
+        final boolean specified = context != null && !Object.class.equals(context);
+        if (!specified) {
+            if (method == Method.NUMERIC) {
+                context = (Class<T>) Double.class;
+            } else if (method == Method.COLOR) {
+                context = (Class<T>) Color.class;
+            } else {
+                // should never reach here for as long as initialize() is called first
+                throw new IllegalStateException("Unknown method, expected NUMERIC or COLOR");
+            }
+        }
+        return context;
+    }
+
+    private void validateArguments(Class<?> context) {
+        if (Color.class.isAssignableFrom(context) && method != Method.COLOR) {
+            throw new IllegalArgumentException(
+                    "Unable to evaluate Color as the interpolation method is set as " + method);
+        }
+    }
+
     private <T> T linearInterpolate(
             final Double lookupValue, final Object object, final int segment, Class<T> context) {
         if (segment < 1 || segment >= interpPoints.size()) {
@@ -425,8 +446,7 @@ public class InterpolateFunction implements Function {
                                                     color1.getBlue())),
                                     0,
                                     255);
-            return context.cast(new Color(r, g, b));
-
+            return Converters.convert(new Color(r, g, b), context);
         } else { // assume numeric
             Double value1 = interpPoints.get(segment).getValue(object);
             Double value0 = interpPoints.get(segment - 1).getValue(object);
@@ -483,7 +503,7 @@ public class InterpolateFunction implements Function {
                                                     color1.getBlue())),
                                     0,
                                     255);
-            return context.cast(new Color(r, g, b));
+            return Converters.convert(new Color(r, g, b), context);
 
         } else { // assume numeric
             Double value1 = interpPoints.get(segment).getValue(object);
@@ -550,7 +570,7 @@ public class InterpolateFunction implements Function {
             }
             int b = (int) clamp(Math.round(doCubic(lookupValue, xi, yi)), 0, 255);
 
-            return context.cast(new Color(r, g, b));
+            return Converters.convert(new Color(r, g, b), context);
 
         } else { // numeric
             for (int i = segment - 2, k = 0; k < 4; i++, k++) {
@@ -564,6 +584,17 @@ public class InterpolateFunction implements Function {
     @Override
     public Literal getFallbackValue() {
         return fallback;
+    }
+
+    private void threadSafeInitialize() {
+        // initialize the lookup data structures only once and in a thread safe way please
+        if (interpPoints == null) {
+            synchronized (this) {
+                if (interpPoints == null) {
+                    initialize();
+                }
+            }
+        }
     }
 
     /**
