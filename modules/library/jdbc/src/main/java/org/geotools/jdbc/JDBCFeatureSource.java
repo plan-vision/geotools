@@ -614,7 +614,11 @@ public class JDBCFeatureSource extends ContentFeatureSource {
                     reader = new JDBCFeatureReader(ps, cx, this, querySchema, query);
                 } else {
                     // build up a statement for the content
+
                     String sql = getDataStore().selectSQL(querySchema, preQuery);
+
+                    sql = dialect.finalizeSQL(sql); // custom finalization
+
                     getDataStore().getLogger().fine(sql);
 
                     reader = new JDBCFeatureReader(sql, cx, this, querySchema, query);

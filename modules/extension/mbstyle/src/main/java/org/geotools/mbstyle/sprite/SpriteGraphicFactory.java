@@ -16,6 +16,7 @@
  */
 package org.geotools.mbstyle.sprite;
 
+import com.planvision.BufferedIcon;
 import java.awt.geom.AffineTransform;
 import java.awt.image.AffineTransformOp;
 import java.awt.image.BufferedImage;
@@ -33,7 +34,6 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.logging.Logger;
 import javax.swing.Icon;
-import javax.swing.ImageIcon;
 import org.geotools.api.feature.Feature;
 import org.geotools.api.filter.expression.Expression;
 import org.geotools.data.ows.URLCheckers;
@@ -167,7 +167,7 @@ public class SpriteGraphicFactory implements ExternalGraphicFactory, GraphicCach
             iconSubImg = ato.filter(iconSubImg, null);
         }
 
-        return new ImageIcon(iconSubImg);
+        return new BufferedIcon(iconSubImg);
     }
 
     /**

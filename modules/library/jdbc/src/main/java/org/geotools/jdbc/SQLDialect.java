@@ -1501,4 +1501,9 @@ public abstract class SQLDialect {
         }
         throw new SQLException("Could not obtain " + clazz.getName() + " from " + cx.getClass());
     }
+
+    /* abstract method for complex rewriting of the final SQL (ex. SQLite spatial index) */
+    public String finalizeSQL(String sql) {
+        return sql;
+    }
 }

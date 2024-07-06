@@ -16,6 +16,7 @@
  */
 package org.geotools.se.v1_1.bindings;
 
+import com.planvision.BufferedIcon;
 import java.awt.Component;
 import java.awt.Graphics;
 import java.awt.image.BufferedImage;
@@ -24,7 +25,6 @@ import java.io.IOException;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 import javax.swing.Icon;
-import javax.swing.ImageIcon;
 import javax.xml.namespace.QName;
 import org.geotools.image.io.ImageIOExt;
 import org.geotools.se.v1_1.SE;
@@ -131,7 +131,7 @@ public class InlineContentBinding extends AbstractComplexBinding {
             LOGGER.warning("returning empty icon");
             return EmptyIcon.INSTANCE;
         }
-        return new ImageIcon(image);
+        return new BufferedIcon(image);
     }
 
     private static class EmptyIcon implements Icon {

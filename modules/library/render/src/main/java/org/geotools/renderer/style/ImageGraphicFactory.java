@@ -16,6 +16,7 @@
  */
 package org.geotools.renderer.style;
 
+import com.planvision.BufferedIcon;
 import java.awt.image.BufferedImage;
 import java.net.URL;
 import java.util.Arrays;
@@ -26,7 +27,6 @@ import java.util.Set;
 import java.util.logging.Logger;
 import javax.imageio.ImageIO;
 import javax.swing.Icon;
-import javax.swing.ImageIcon;
 import org.geotools.api.feature.Feature;
 import org.geotools.api.filter.expression.Expression;
 import org.geotools.data.ows.URLCheckers;
@@ -89,10 +89,10 @@ public class ImageGraphicFactory implements ExternalGraphicFactory, GraphicCache
         if (size > 0 && image.getHeight() != size) {
             double dsize = (double) size;
             double scale = dsize / image.getHeight(); // >1 if you're magnifying
-            return new RescaledIcon(new javax.swing.ImageIcon(image), scale);
+            return new RescaledIcon(new BufferedIcon(image), scale);
         }
 
-        return new ImageIcon(image);
+        return new BufferedIcon(image);
     }
 
     /** Returs the set of mime types supported by this factory */
