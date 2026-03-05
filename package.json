@@ -2,7 +2,7 @@
   "name": "geotools",
   "version": "26.0.0",
   "scripts": {
-	"build": "mvn install -DskipTests"
+	"build": "vr mvn install -DskipTests"
   },
   "bin": {},
   "author": "org.geotools",
